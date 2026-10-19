@@ -1,38 +1,31 @@
+import { requireRole, useMe } from "@/lib/auth";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
-import { useMe } from "@/lib/auth";
 import { fmtDate, pkr } from "@/lib/format";
 import { Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { downloadCsv, stamp } from "@/lib/csv";
+import { invoiceStatus } from "@/lib/invoice-status";
 import { vendorTotals } from "@/lib/vendor-ledger";
 import { StatusPill } from "@/components/CrudPage";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   head: () => ({ meta: [{ title: "Dashboard — Décor Studio" }, { name: "description", content: "Revenue, expenses and event overview." }, { property: "og:title", content: "Dashboard — Décor Studio" }, { property: "og:description", content: "Revenue, expenses and event overview." }] }),
+  beforeLoad: ({ context }) => requireRole(context.queryClient, ["admin", "accountant"]),
   component: Dashboard,
 });
-
-const SAMPLE_HOTELS = ["Marriott Banquet", "Pearl Continental", "Royal Palm", "Avari Towers", "Serena Hotel", "Faletti's Hotel"];
-const SAMPLE_PERFORMANCE = [
-  { hotel: "Marriott Banquet", Revenue: 850000, Cost: 520000, bookings: 6 },
-  { hotel: "Pearl Continental", Revenue: 720000, Cost: 430000, bookings: 5 },
-  { hotel: "Royal Palm", Revenue: 540000, Cost: 310000, bookings: 4 },
-  { hotel: "Avari Towers", Revenue: 380000, Cost: 240000, bookings: 3 },
-];
-const sampleHotelFor = (id: string) => SAMPLE_HOTELS[[...String(id)].reduce((a, c) => a + c.charCodeAt(0), 0) % SAMPLE_HOTELS.length] ?? "Royal Palm";
 
 function useData() {
   return useQuery({
     queryKey: ["dashboard"],
     queryFn: async () => {
       const [inv, exp, ev, vp] = await Promise.all([
-        supabase.from("invoices").select("*"),
-        supabase.from("expenses").select("*"),
-        supabase.from("events").select("*, hotels(name)").order("event_date"),
-        supabase.from("vendor_payments").select("vendor_id, amount"),
+        supabase.from("invoices").select("*").is("deleted_at", null).is("voided_at", null),
+        supabase.from("expenses").select("*").is("deleted_at", null),
+        supabase.from("events").select("*, hotels(name), event_financials(package_price)").is("deleted_at", null).order("event_date"),
+        supabase.from("vendor_payments").select("vendor_id, amount").is("deleted_at", null),
       ]);
       return { invoices: inv.data ?? [], expenses: exp.data ?? [], events: ev.data ?? [], vendorPayments: vp.data ?? [] };
     },
@@ -77,14 +70,14 @@ function Dashboard() {
   // per hotel profit
   const byHotel = new Map<string, { hotel: string; Revenue: number; Cost: number; bookings: number }>();
   for (const ev of events) {
-    const name = (ev.hotels as { name: string } | null)?.name ?? sampleHotelFor(ev.id);
+    const name = (ev.hotels as { name: string } | null)?.name ?? "Unassigned";
     const row = byHotel.get(name) ?? { hotel: name, Revenue: 0, Cost: 0, bookings: 0 };
-    row.Revenue += Number(ev.package_price);
+    row.Revenue += Number((ev.event_financials as { package_price: number } | null)?.package_price ?? 0);
     row.Cost += expenses.filter((x) => x.event_id === ev.id).reduce((s, x) => s + Number(x.amount), 0);
     row.bookings += 1;
     byHotel.set(name, row);
   }
-  const hotels = byHotel.size ? [...byHotel.values()].sort((a, b) => b.bookings - a.bookings) : SAMPLE_PERFORMANCE;
+  const hotels = [...byHotel.values()].sort((a, b) => b.bookings - a.bookings);
 
   const isAdmin = me.role === "admin";
   return (
@@ -105,7 +98,7 @@ function Dashboard() {
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Stat label="Cash in (this month)" value={pkr(flow[5]?.In ?? 0)} />
           <Stat label="Cash out (this month)" value={pkr(flow[5]?.Out ?? 0)} />
-          <Stat label="Unpaid invoices" value={String(invoices.filter((i) => i.status !== "paid").length)} tone="text-warning" />
+          <Stat label="Unpaid invoices" value={String(invoices.filter((i) => invoiceStatus(i.amount, i.amount_paid, i.due_date) !== "paid").length)} tone="text-warning" />
           <Stat label="Pending vendor bills" value={pkr(pendingVendorBills + unlinkedUnpaid)} tone="text-destructive" />
         </div>
       )}
@@ -130,6 +123,7 @@ function Dashboard() {
               <Button
                 size="sm"
                 variant="outline"
+                disabled={hotels.length === 0}
                 onClick={() =>
                   downloadCsv(
                     `hotel-performance-${stamp()}`,
@@ -143,6 +137,9 @@ function Dashboard() {
                 <span className="sm:hidden">CSV</span>
               </Button>
             </div>
+            {hotels.length === 0 ? (
+              <p className="py-16 text-center text-sm text-muted-foreground">No events yet — add one to see hotel performance.</p>
+            ) : (
             <ResponsiveContainer width="100%" height={260}>
               <BarChart data={hotels.slice(0, 6)}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
@@ -152,6 +149,7 @@ function Dashboard() {
                 <Bar dataKey="Cost" fill="var(--chart-3)" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
+            )}
           </div>
         ) : (
           <div className="rounded-lg border bg-card p-5">

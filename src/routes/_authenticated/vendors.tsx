@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { requireRole } from "@/lib/auth";
 import { createFileRoute } from "@tanstack/react-router";
 import { BookOpen } from "lucide-react";
 import { CrudPage } from "@/components/CrudPage";
@@ -10,6 +11,7 @@ import { vendorTotals, type LedgerExpense, type LedgerPayment } from "@/lib/vend
 
 export const Route = createFileRoute("/_authenticated/vendors")({
   head: () => ({ meta: [{ title: "Vendors — Décor Studio" }, { name: "description", content: "Supplier ledgers." }, { property: "og:title", content: "Vendors — Décor Studio" }, { property: "og:description", content: "Supplier ledgers." }] }),
+  beforeLoad: ({ context }) => requireRole(context.queryClient, ["admin", "accountant"]),
   component: VendorsPage,
 });
 

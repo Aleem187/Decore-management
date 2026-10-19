@@ -1,1 +1,5 @@
 project_id = "tyhqzgfmqkpvozwmrxfi"
+
+[auth]
+# Invite-only: public sign-up is off. Users are invited from the admin Users page.
+enable_signup = false

@@ -1,6 +1,9 @@
+import { supabase } from "@/integrations/supabase/client";
 import { fmtDate, pkr } from "@/lib/format";
+import { resolveLines, type InvoiceItemRow } from "@/lib/invoice-lines";
 
 export type InvoicePdfData = {
+  id: string;
   invoice_no: string;
   client_name: string;
   kind: string;
@@ -11,29 +14,11 @@ export type InvoicePdfData = {
   events?: { name: string; event_date: string | null; client_phone: string | null } | null;
 };
 
-// The database stores one amount per invoice, so the itemised breakdown
-// splits it using these standard shares. The last line absorbs rounding.
-const ITEM_SHARES: { name: string; share: number }[] = [
-  { name: "Stage Decor", share: 0.4 },
-  { name: "Lighting", share: 0.2 },
-  { name: "Floral Setup", share: 0.25 },
-  { name: "Mandap", share: 0.15 },
-];
-
 const GOLD: [number, number, number] = [176, 137, 74];
 const INK: [number, number, number] = [38, 34, 30];
 const MUTED: [number, number, number] = [120, 113, 105];
 
-function lineItems(total: number) {
-  let used = 0;
-  return ITEM_SHARES.map((it, i) => {
-    const value = i === ITEM_SHARES.length - 1 ? total - used : Math.round(total * it.share);
-    used += value;
-    return { name: it.name, value };
-  });
-}
-
-async function build(inv: InvoicePdfData, mode: "invoice" | "receipt") {
+async function build(inv: InvoicePdfData, mode: "invoice" | "receipt", items: InvoiceItemRow[]) {
   const [{ jsPDF }, { default: autoTable }] = await Promise.all([
     import("jspdf"),
     import("jspdf-autotable"),
@@ -103,13 +88,24 @@ async function build(inv: InvoicePdfData, mode: "invoice" | "receipt") {
   autoTable(doc, {
     startY: 198,
     margin: { left: M, right: M },
-    head: [["#", "Decoration charges", "Amount"]],
-    body: lineItems(total).map((it, i) => [String(i + 1), it.name, pkr(it.value)]),
+    head: [["#", "Description", "Qty", "Unit price", "Amount"]],
+    body: resolveLines(total, items).map((l, i) => [
+      String(i + 1),
+      l.description,
+      String(l.quantity),
+      pkr(l.unitPrice),
+      pkr(l.amount),
+    ]),
     theme: "striped",
     styles: { font: "helvetica", fontSize: 10, cellPadding: 8, textColor: INK },
     headStyles: { fillColor: INK, textColor: 255, fontStyle: "bold" },
     alternateRowStyles: { fillColor: [247, 243, 237] },
-    columnStyles: { 0: { cellWidth: 30 }, 2: { halign: "right", cellWidth: 130 } },
+    columnStyles: {
+      0: { cellWidth: 30 },
+      2: { halign: "right", cellWidth: 50 },
+      3: { halign: "right", cellWidth: 95 },
+      4: { halign: "right", cellWidth: 100 },
+    },
   });
 
   // Financial summary
@@ -164,6 +160,13 @@ async function build(inv: InvoicePdfData, mode: "invoice" | "receipt") {
 }
 
 export async function downloadInvoicePdf(inv: InvoicePdfData, mode: "invoice" | "receipt") {
-  const doc = await build(inv, mode);
+  const { data, error } = await supabase
+    .from("invoice_items")
+    .select("description, quantity, unit_price")
+    .eq("invoice_id", inv.id)
+    .is("deleted_at", null)
+    .order("created_at");
+  if (error) throw error;
+  const doc = await build(inv, mode, data ?? []);
   doc.save(`${mode === "receipt" ? "Receipt" : "Invoice"}-${inv.invoice_no}.pdf`);
 }

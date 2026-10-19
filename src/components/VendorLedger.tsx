@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { useMe } from "@/lib/auth";
 import { fmtDate, pkr } from "@/lib/format";
 import { vendorTotals } from "@/lib/vendor-ledger";
 import { Button } from "@/components/ui/button";
@@ -40,6 +41,8 @@ function Metric({ label, value, tone }: { label: string; value: string; tone?: s
 
 export function VendorLedger({ vendor }: { vendor: Vendor }) {
   const qc = useQueryClient();
+  const { data: me } = useMe();
+  const isAdmin = me?.role === "admin";
   const key = ["vendor_ledger", vendor.id];
   const [form, setForm] = useState({
     payment_date: today(),
@@ -56,11 +59,13 @@ export function VendorLedger({ vendor }: { vendor: Vendor }) {
           .from("expenses")
           .select("id, expense_date, category, description, amount, paid")
           .eq("vendor_id", vendor.id)
+          .is("deleted_at", null)
           .order("expense_date", { ascending: false }),
         supabase
           .from("vendor_payments")
           .select("*")
           .eq("vendor_id", vendor.id)
+          .is("deleted_at", null)
           .order("payment_date", { ascending: false })
           .order("created_at", { ascending: false }),
       ]);
@@ -105,7 +110,7 @@ export function VendorLedger({ vendor }: { vendor: Vendor }) {
 
   const remove = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("vendor_payments").delete().eq("id", id);
+      const { error } = await supabase.rpc("soft_delete", { _table: "vendor_payments", _id: id });
       if (error) throw error;
     },
     onSuccess: refresh,
@@ -220,14 +225,16 @@ export function VendorLedger({ vendor }: { vendor: Vendor }) {
                   <TableCell>{p.method}</TableCell>
                   <TableCell className="max-w-48 truncate">{p.notes ?? "—"}</TableCell>
                   <TableCell>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      aria-label="Delete payment"
-                      onClick={() => confirm("Delete this payment?") && remove.mutate(p.id)}
-                    >
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
+                    {isAdmin && (
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        aria-label="Delete payment"
+                        onClick={() => confirm("Delete this payment?") && remove.mutate(p.id)}
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    )}
                   </TableCell>
                 </TableRow>
               ))}

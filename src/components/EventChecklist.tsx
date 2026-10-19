@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { useMe } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,6 +39,8 @@ export function EventChecklist({
   canEdit?: boolean;
 }) {
   const qc = useQueryClient();
+  const { data: me } = useMe();
+  const isAdmin = me?.role === "admin";
   const key = ["event_materials", eventId];
   const [name, setName] = useState("");
   const [qty, setQty] = useState("1");
@@ -49,6 +52,7 @@ export function EventChecklist({
         .from("event_materials")
         .select("*")
         .eq("event_id", eventId)
+        .is("deleted_at", null)
         .order("created_at");
       if (error) throw error;
       return data;
@@ -85,7 +89,7 @@ export function EventChecklist({
 
   const remove = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("event_materials").delete().eq("id", id);
+      const { error } = await supabase.rpc("soft_delete", { _table: "event_materials", _id: id });
       if (error) throw error;
     },
     onSuccess: refresh,
@@ -121,7 +125,7 @@ export function EventChecklist({
               >
                 {status}
               </button>
-              {canEdit && (
+              {canEdit && isAdmin && (
                 <Button
                   size="icon"
                   variant="ghost"

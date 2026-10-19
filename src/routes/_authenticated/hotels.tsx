@@ -1,9 +1,10 @@
+import { requireRole, useMe } from "@/lib/auth";
 import { createFileRoute } from "@tanstack/react-router";
 import { CrudPage } from "@/components/CrudPage";
-import { useMe } from "@/lib/auth";
 
 export const Route = createFileRoute("/_authenticated/hotels")({
   head: () => ({ meta: [{ title: "Hotels — Décor Studio" }, { name: "description", content: "Hotel and venue directory." }, { property: "og:title", content: "Hotels — Décor Studio" }, { property: "og:description", content: "Hotel and venue directory." }] }),
+  beforeLoad: ({ context }) => requireRole(context.queryClient, ["admin"]),
   component: () => {
     const { data: me } = useMe();
     return (

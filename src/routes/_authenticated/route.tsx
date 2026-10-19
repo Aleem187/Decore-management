@@ -1,6 +1,6 @@
 import { createFileRoute, Link, Outlet, redirect, useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { LayoutDashboard, Hotel, CalendarHeart, Receipt, Wallet, Truck, Users, LogOut } from "lucide-react";
+import { LayoutDashboard, Hotel, CalendarHeart, Receipt, Wallet, Truck, Users, UserCog, LogOut } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffect } from "react";
 import { useLocation } from "@tanstack/react-router";
@@ -22,6 +22,7 @@ const nav = [
   { to: "/invoices", label: "Invoices", icon: Receipt },
   { to: "/expenses", label: "Expenses", icon: Wallet },
   { to: "/vendors", label: "Vendors", icon: Truck },
+  { to: "/users", label: "Users", icon: UserCog, admin: true },
   { to: "/team", label: "Team & Audit", icon: Users, admin: true },
 ] as const;
 

@@ -1,15 +1,12 @@
-import { createFileRoute, redirect } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { effectiveRole, meQuery } from "@/lib/auth";
+import { requireRole } from "@/lib/auth";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 export const Route = createFileRoute("/_authenticated/team")({
   head: () => ({ meta: [{ title: "Team & Audit — Décor Studio" }, { name: "description", content: "Staff roles and activity log." }, { property: "og:title", content: "Team & Audit — Décor Studio" }, { property: "og:description", content: "Staff roles and activity log." }] }),
-  beforeLoad: async ({ context }) => {
-    const me = await context.queryClient.ensureQueryData(meQuery);
-    if (effectiveRole(me?.role ?? null) !== "admin") throw redirect({ to: "/dashboard" });
-  },
+  beforeLoad: ({ context }) => requireRole(context.queryClient, ["admin"]),
   component: TeamPage,
 });
 

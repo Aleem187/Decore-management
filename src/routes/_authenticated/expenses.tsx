@@ -1,3 +1,4 @@
+import { requireRole } from "@/lib/auth";
 import { createFileRoute } from "@tanstack/react-router";
 import { CrudPage, useOptions } from "@/components/CrudPage";
 import { fmtDate, pkr } from "@/lib/format";
@@ -6,6 +7,7 @@ const CATEGORIES = ["Flowers", "Lighting", "Props", "Fabric", "Transportation", 
 
 export const Route = createFileRoute("/_authenticated/expenses")({
   head: () => ({ meta: [{ title: "Expenses — Décor Studio" }, { name: "description", content: "Daily expense ledger." }, { property: "og:title", content: "Expenses — Décor Studio" }, { property: "og:description", content: "Daily expense ledger." }] }),
+  beforeLoad: ({ context }) => requireRole(context.queryClient, ["admin", "accountant"]),
   component: ExpensesPage,
 });
 

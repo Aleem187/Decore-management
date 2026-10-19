@@ -46,43 +46,43 @@ export type Database = {
           client_name: string
           client_phone: string | null
           created_at: string
-          estimated_cost: number
           event_date: string
           event_type: string
           hotel_id: string | null
           id: string
           name: string
           notes: string | null
-          package_price: number
           status: Database["public"]["Enums"]["event_status"]
+          deleted_at: string | null
+          deleted_by: string | null
         }
         Insert: {
           client_name: string
           client_phone?: string | null
           created_at?: string
-          estimated_cost?: number
           event_date: string
           event_type?: string
           hotel_id?: string | null
           id?: string
           name: string
           notes?: string | null
-          package_price?: number
           status?: Database["public"]["Enums"]["event_status"]
+          deleted_at?: string | null
+          deleted_by?: string | null
         }
         Update: {
           client_name?: string
           client_phone?: string | null
           created_at?: string
-          estimated_cost?: number
           event_date?: string
           event_type?: string
           hotel_id?: string | null
           id?: string
           name?: string
           notes?: string | null
-          package_price?: number
           status?: Database["public"]["Enums"]["event_status"]
+          deleted_at?: string | null
+          deleted_by?: string | null
         }
         Relationships: [
           {
@@ -102,6 +102,8 @@ export type Database = {
           item_name: string
           quantity: number
           status: string
+          deleted_at: string | null
+          deleted_by: string | null
         }
         Insert: {
           created_at?: string
@@ -110,6 +112,8 @@ export type Database = {
           item_name: string
           quantity?: number
           status?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
         }
         Update: {
           created_at?: string
@@ -118,6 +122,8 @@ export type Database = {
           item_name?: string
           quantity?: number
           status?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
         }
         Relationships: [
           {
@@ -140,6 +146,8 @@ export type Database = {
           id: string
           paid: boolean
           vendor_id: string | null
+          deleted_at: string | null
+          deleted_by: string | null
         }
         Insert: {
           amount?: number
@@ -151,6 +159,8 @@ export type Database = {
           id?: string
           paid?: boolean
           vendor_id?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
         }
         Update: {
           amount?: number
@@ -162,6 +172,8 @@ export type Database = {
           id?: string
           paid?: boolean
           vendor_id?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
         }
         Relationships: [
           {
@@ -190,6 +202,8 @@ export type Database = {
           hall_name: string | null
           id: string
           name: string
+          deleted_at: string | null
+          deleted_by: string | null
         }
         Insert: {
           address?: string | null
@@ -200,6 +214,8 @@ export type Database = {
           hall_name?: string | null
           id?: string
           name: string
+          deleted_at?: string | null
+          deleted_by?: string | null
         }
         Update: {
           address?: string | null
@@ -210,8 +226,80 @@ export type Database = {
           hall_name?: string | null
           id?: string
           name?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
         }
         Relationships: []
+      }
+      event_financials: {
+        Row: {
+          event_id: string
+          estimated_cost: number
+          package_price: number
+          updated_at: string
+        }
+        Insert: {
+          event_id: string
+          estimated_cost?: number
+          package_price?: number
+          updated_at?: string
+        }
+        Update: {
+          event_id?: string
+          estimated_cost?: number
+          package_price?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_financials_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: true
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      invoice_items: {
+        Row: {
+          created_at: string
+          deleted_at: string | null
+          deleted_by: string | null
+          description: string
+          id: string
+          invoice_id: string
+          quantity: number
+          unit_price: number
+        }
+        Insert: {
+          created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
+          description: string
+          id?: string
+          invoice_id: string
+          quantity?: number
+          unit_price: number
+        }
+        Update: {
+          created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
+          description?: string
+          id?: string
+          invoice_id?: string
+          quantity?: number
+          unit_price?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoice_items_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       invoices: {
         Row: {
@@ -225,6 +313,10 @@ export type Database = {
           invoice_no: string
           kind: string
           status: Database["public"]["Enums"]["invoice_status"]
+          deleted_at: string | null
+          deleted_by: string | null
+          voided_at: string | null
+          voided_by: string | null
         }
         Insert: {
           amount?: number
@@ -237,6 +329,10 @@ export type Database = {
           invoice_no: string
           kind?: string
           status?: Database["public"]["Enums"]["invoice_status"]
+          deleted_at?: string | null
+          deleted_by?: string | null
+          voided_at?: string | null
+          voided_by?: string | null
         }
         Update: {
           amount?: number
@@ -249,6 +345,10 @@ export type Database = {
           invoice_no?: string
           kind?: string
           status?: Database["public"]["Enums"]["invoice_status"]
+          deleted_at?: string | null
+          deleted_by?: string | null
+          voided_at?: string | null
+          voided_by?: string | null
         }
         Relationships: [
           {
@@ -266,18 +366,21 @@ export type Database = {
           email: string | null
           full_name: string
           id: string
+          disabled_at: string | null
         }
         Insert: {
           created_at?: string
           email?: string | null
           full_name?: string
           id: string
+          disabled_at?: string | null
         }
         Update: {
           created_at?: string
           email?: string | null
           full_name?: string
           id?: string
+          disabled_at?: string | null
         }
         Relationships: []
       }
@@ -308,6 +411,8 @@ export type Database = {
           notes: string | null
           payment_date: string
           vendor_id: string
+          deleted_at: string | null
+          deleted_by: string | null
         }
         Insert: {
           amount: number
@@ -317,6 +422,8 @@ export type Database = {
           notes?: string | null
           payment_date?: string
           vendor_id: string
+          deleted_at?: string | null
+          deleted_by?: string | null
         }
         Update: {
           amount?: number
@@ -326,6 +433,8 @@ export type Database = {
           notes?: string | null
           payment_date?: string
           vendor_id?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
         }
         Relationships: [
           {
@@ -344,6 +453,8 @@ export type Database = {
           id: string
           name: string
           phone: string | null
+          deleted_at: string | null
+          deleted_by: string | null
         }
         Insert: {
           category?: string | null
@@ -351,6 +462,8 @@ export type Database = {
           id?: string
           name: string
           phone?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
         }
         Update: {
           category?: string | null
@@ -358,6 +471,8 @@ export type Database = {
           id?: string
           name?: string
           phone?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
         }
         Relationships: []
       }
@@ -374,6 +489,8 @@ export type Database = {
         Returns: boolean
       }
       is_staff: { Args: { _user_id: string }; Returns: boolean }
+      soft_delete: { Args: { _id: string; _table: string }; Returns: undefined }
+      void_invoice: { Args: { _id: string }; Returns: undefined }
     }
     Enums: {
       app_role: "admin" | "accountant"

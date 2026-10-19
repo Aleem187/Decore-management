@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Pencil, Plus, Trash2, Download } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { useMe } from "@/lib/auth";
 import { downloadCsv, stamp, type CsvCell } from "@/lib/csv";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,6 +20,8 @@ export type Field = {
   type?: "text" | "number" | "date" | "select" | "textarea" | "checkbox";
   options?: { value: string; label: string }[];
   required?: boolean;
+  /** Stored outside the main table; passed to afterSave instead of being written to it. */
+  extra?: boolean;
 };
 export type ExportColumn = { header: string; value: (r: Row) => CsvCell };
 export type Column = { key: string; label: string; render?: (r: Row) => ReactNode; className?: string };
@@ -36,8 +39,14 @@ export function CrudPage(props: {
   summary?: (rows: Row[]) => ReactNode;
   /** Clean headers/values for the report export; falls back to the visible columns. */
   exportColumns?: ExportColumn[];
+  /** Reshape each fetched row (e.g. flatten an embedded table) before display and editing. */
+  normalize?: (r: Row) => Row;
+  /** Runs after the main row is saved, with its id and the full form values (for `extra` fields). */
+  afterSave?: (id: string, form: Row) => Promise<void>;
 }) {
   const qc = useQueryClient();
+  const { data: me } = useMe();
+  const canDelete = me?.role === "admin";
   const db = supabase as any;
   const [editing, setEditing] = useState<Row | null>(null);
   const [q, setQ] = useState("");
@@ -45,9 +54,9 @@ export function CrudPage(props: {
   const { data: rows = [], isLoading } = useQuery({
     queryKey: [props.table],
     queryFn: async () => {
-      const { data, error } = await db.from(props.table).select(props.select ?? "*").order(props.orderBy, { ascending: false });
+      const { data, error } = await db.from(props.table).select(props.select ?? "*").is("deleted_at", null).order(props.orderBy, { ascending: false });
       if (error) throw error;
-      return data as Row[];
+      return ((data ?? []) as Row[]).map((r) => (props.normalize ? props.normalize(r) : r));
     },
   });
 
@@ -55,15 +64,22 @@ export function CrudPage(props: {
     mutationFn: async (r: Row) => {
       const payload: Row = {};
       for (const f of props.fields) {
+        if (f.extra) continue;
         let v = r[f.key];
         if (v === "" || v === undefined) v = f.type === "number" ? 0 : f.type === "checkbox" ? false : null;
         if (f.type === "number") v = Number(v);
         payload[f.key] = v;
       }
-      const res = r.id
-        ? await db.from(props.table).update(payload).eq("id", r.id)
-        : await db.from(props.table).insert(payload);
-      if (res.error) throw res.error;
+      let id: string = r.id;
+      if (r.id) {
+        const res = await db.from(props.table).update(payload).eq("id", r.id);
+        if (res.error) throw res.error;
+      } else {
+        const res = await db.from(props.table).insert(payload).select("id").single();
+        if (res.error) throw res.error;
+        id = res.data.id;
+      }
+      if (props.afterSave) await props.afterSave(id, r);
     },
     onSuccess: () => { qc.invalidateQueries(); setEditing(null); toast.success("Saved"); },
     onError: (e: Error) => toast.error(e.message),
@@ -71,7 +87,8 @@ export function CrudPage(props: {
 
   const del = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await db.from(props.table).delete().eq("id", id);
+      // Soft delete through an admin-checked database function; rows are never physically removed.
+      const { error } = await db.rpc("soft_delete", { _table: props.table, _id: id });
       if (error) throw error;
     },
     onSuccess: () => { qc.invalidateQueries(); toast.success("Deleted"); },
@@ -119,7 +136,7 @@ export function CrudPage(props: {
                 {props.canWrite && (
                   <TableCell className="text-right">
                     <Button size="icon" variant="ghost" onClick={() => setEditing(r)}><Pencil className="h-4 w-4" /></Button>
-                    <Button size="icon" variant="ghost" onClick={() => confirm("Delete this record?") && del.mutate(r.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                    {canDelete && <Button size="icon" variant="ghost" aria-label="Delete" onClick={() => confirm("Delete this record? It will be hidden from everyone.") && del.mutate(r.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>}
                   </TableCell>
                 )}
               </TableRow>
@@ -165,7 +182,7 @@ export function useOptions(table: string, label = "name") {
   return useQuery({
     queryKey: [table, "options"],
     queryFn: async () => {
-      const { data } = await (supabase as any).from(table).select(`id, ${label}`).order(label);
+      const { data } = await (supabase as any).from(table).select(`id, ${label}`).is("deleted_at", null).order(label);
       return ((data ?? []) as Row[]).map((r) => ({ value: r.id as string, label: r[label] as string }));
     },
   }).data ?? [];

@@ -1,20 +1,40 @@
+import { requireRole, useMe } from "@/lib/auth";
 import { createFileRoute } from "@tanstack/react-router";
 import { CrudPage, StatusPill, useOptions } from "@/components/CrudPage";
 import { useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import { ClipboardList } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { EventChecklist } from "@/components/EventChecklist";
 import { WhatsAppButton } from "@/components/WhatsAppButton";
-import { useMe } from "@/lib/auth";
 import { fmtDate, pkr } from "@/lib/format";
 
 const types = ["Wedding", "Mehndi", "Corporate", "Birthday", "Stage Decor", "Mandap / Stage", "Other"];
 
 export const Route = createFileRoute("/_authenticated/events")({
   head: () => ({ meta: [{ title: "Events — Décor Studio" }, { name: "description", content: "Decor projects and status tracker." }, { property: "og:title", content: "Events — Décor Studio" }, { property: "og:description", content: "Decor projects and status tracker." }] }),
+  beforeLoad: ({ context }) => requireRole(context.queryClient, ["admin"]),
   component: EventsPage,
 });
+
+type Row = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+
+// Package price and estimated cost live in the admin-only event_financials table.
+function flattenFinancials(r: Row): Row {
+  const f = Array.isArray(r["event_financials"]) ? r["event_financials"][0] : r["event_financials"];
+  return { ...r, package_price: Number(f?.package_price ?? 0), estimated_cost: Number(f?.estimated_cost ?? 0) };
+}
+
+async function saveFinancials(eventId: string, form: Row) {
+  const { error } = await supabase.from("event_financials").upsert({
+    event_id: eventId,
+    package_price: Number(form["package_price"] ?? 0),
+    estimated_cost: Number(form["estimated_cost"] ?? 0),
+    updated_at: new Date().toISOString(),
+  });
+  if (error) throw error;
+}
 
 function EventsPage() {
   const { data: me } = useMe();
@@ -23,7 +43,8 @@ function EventsPage() {
   return (
     <>
     <CrudPage table="events" title="Events" subtitle="Upcoming → In progress → Completed → Paid" orderBy="event_date"
-      select="*, hotels(name), expenses(amount), invoices(amount_paid)" canWrite={me?.role === "admin"} defaults={{ event_type: "Wedding", status: "upcoming" }}
+      select="*, hotels(name), expenses(amount), invoices(amount_paid, voided_at), event_financials(package_price, estimated_cost)"
+      normalize={flattenFinancials} afterSave={saveFinancials} canWrite={me?.role === "admin"} defaults={{ event_type: "Wedding", status: "upcoming" }}
       columns={[
         { key: "event_date", label: "Date", render: (r) => fmtDate(r.event_date) },
         { key: "name", label: "Event", render: (r) => <><span className="font-medium">{r.name}</span><div className="text-xs text-muted-foreground">{r.event_type} · {r.client_name}</div></> },
@@ -40,7 +61,7 @@ function EventsPage() {
         { key: "whatsapp", label: "Client", render: (r) => (
           <WhatsAppButton update={{
             clientName: r.client_name, eventName: r.name, eventDate: r.event_date, total: r.package_price, phone: r.client_phone,
-            paid: (r.invoices ?? []).reduce((s: number, i: { amount_paid: number }) => s + Number(i.amount_paid), 0),
+            paid: (r.invoices ?? []).filter((i: { voided_at: string | null }) => !i.voided_at).reduce((s: number, i: { amount_paid: number }) => s + Number(i.amount_paid), 0),
           }} />
         ) },
       ]}
@@ -51,8 +72,8 @@ function EventsPage() {
         { key: "hotel_id", label: "Hotel", type: "select", options: hotels },
         { key: "client_name", label: "Client name", required: true },
         { key: "client_phone", label: "Client phone" },
-        { key: "package_price", label: "Package price (PKR)", type: "number" },
-        { key: "estimated_cost", label: "Estimated cost (PKR)", type: "number" },
+        { key: "package_price", label: "Package price (PKR)", type: "number", extra: true },
+        { key: "estimated_cost", label: "Estimated cost (PKR)", type: "number", extra: true },
         { key: "status", label: "Status", type: "select", options: ["upcoming", "in_progress", "completed", "paid"].map((s) => ({ value: s, label: s.replace("_", " ") })), required: true },
         { key: "notes", label: "Material checklist / notes", type: "textarea" },
       ]}
