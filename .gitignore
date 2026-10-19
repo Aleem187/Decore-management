@@ -33,3 +33,4 @@ dist-ssr
 
 # Local environment (secrets/keys)
 .env
+supabase/.temp/
