@@ -1,5 +1,5 @@
 import { requireRole } from "@/lib/auth";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Ban, FileText, ListPlus, Wallet } from "lucide-react";
@@ -66,7 +66,7 @@ function InvoicesPage() {
       }}
       columns={[
         { key: "invoice_no", label: "No.", render: (r) => <span className="font-mono text-xs">{r.invoice_no}</span> },
-        { key: "client_name", label: "Client", render: (r) => <>{r.client_name}<div className="text-xs text-muted-foreground">{r.events?.name ?? ""} · {r.kind}</div></> },
+        { key: "client_name", label: "Client", render: (r) => <>{r.client_name}<div className="text-xs text-muted-foreground">{r.event_id && r.events?.name ? <Link to="/events/$eventId" params={{ eventId: r.event_id }} className="underline-offset-2 hover:underline">{r.events.name}</Link> : (r.events?.name ?? "")} · {r.kind}</div></> },
         { key: "amount", label: "Amount", render: (r) => pkr(r.amount) },
         { key: "amount_paid", label: "Paid", render: (r) => pkr(r.amount_paid) },
         { key: "balance", label: "Balance", render: (r) => pkr(Number(r.amount) - Number(r.amount_paid)) },

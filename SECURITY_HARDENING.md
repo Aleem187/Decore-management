@@ -92,3 +92,29 @@ Migration: `supabase/migrations/20261022000000_clients.sql` (after the hardening
 2. Rename a client: their events and open invoices show the new name.
 3. Team & Audit → Activity log shows client inserts, updates and deletes.
 4. At 375px: the clients table hides Email/Added columns, buttons wrap, the detail page cards stack.
+
+---
+
+# Event profitability (branch `event-profitability`)
+
+Migration: `supabase/migrations/20261023000000_event_profitability.sql` (after the clients migration).
+
+## Rollout
+1. Staging first, with a backup. The migration only adds indexes, a trigger and three functions; no column is changed.
+2. Cash and profit figures come only from `event_pnl()`, `event_pnl_one()` and `general_expenses_total()`. They check for the admin role inside the database and raise "permission denied" for everyone else. Every call is written to the audit log (`VIEW_EVENT_PNL`).
+3. Known limit: accountants still read raw invoices and expenses (their normal work), including each expense's event link. Someone determined could add those up by hand. Hiding that would mean hiding the event link on expenses from accountants, which changes existing data and the Expenses page; ask if you want it.
+
+## Manual tests — Admin
+1. Expenses: add an expense and pick an event and a vendor; add another with no event.
+2. Events → click an event name: tiles Total invoiced / Total received / Total expenses / Profit (or Loss, in red) with a margin note; invoice and expense tables below.
+3. Void a payment on one of its invoices (Invoices → Payments → Void): Received drops. Void an invoice: Invoiced drops.
+4. Event Profitability (sidebar): pick This month / Last month / This year / Custom. Rows show client, hotel, invoiced, received, expenses, profit, margin; totals row at the bottom; "General expenses" and "Net after general expenses" cards. An event with no invoices shows zero income, a loss and "—" margin.
+5. Export Report (CSV): open in Excel. Give a client the name `=1+1` first: it must appear as text `'=1+1`, not 2. Losses are negative numbers.
+6. Team & Audit → Activity log shows `VIEW_EVENT_PNL` entries.
+7. At 375px the table keeps Event / Received / Expenses / Profit and scrolls sideways; client and hotel move under the event name.
+
+## Manual tests — Accountant (real accountant login)
+1. Expenses: link an expense to an event and to a vendor. Saving works.
+2. Sidebar has no Event Profitability. Opening /event-profitability or /events goes back to the dashboard.
+3. Invoices → click an event name: the event page shows only Total invoiced and Total received and the invoice list, with the note that costs and profit are admin only. No expenses, no profit.
+4. In the browser console, calling the profit functions (for example `event_pnl`) through the API is refused (permission denied).

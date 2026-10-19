@@ -22,6 +22,35 @@ insert into public.event_financials (event_id, package_price, estimated_cost)
 insert into public.invoices (id, invoice_no, event_id, client_name, amount, amount_paid)
   values ('00000000-0000-0000-0000-00000000f001', 'T-001', '00000000-0000-0000-0000-00000000e001', 'Test Client', 100000, 0);
 
+-- Event profitability fixtures (owner level) ----------------------------------
+insert into public.hotels (id, name) values ('00000000-0000-0000-0000-0000000000d1', 'Test Hotel');
+insert into public.events (id, name, event_date, client_name, hotel_id) values
+  ('00000000-0000-0000-0000-00000000e002', 'PnL Wedding', current_date + 10, 'PnL Client', '00000000-0000-0000-0000-0000000000d1'),
+  ('00000000-0000-0000-0000-00000000e003', 'PnL No Invoices', current_date + 11, 'Quiet Client', null),
+  ('00000000-0000-0000-0000-00000000e004', 'PnL Out Of Range', current_date + 900, 'Far Client', null);
+insert into public.events (id, name, event_date, client_name, deleted_at)
+  values ('00000000-0000-0000-0000-00000000e005', 'PnL Deleted', current_date + 12, 'Gone Client', now());
+-- e002: invoice A 100000 (payments 60000 + 5000 voided), invoice B 50000 voided with a 20000 payment
+insert into public.invoices (id, invoice_no, event_id, client_name, amount) values
+  ('00000000-0000-0000-0000-00000000f0a1', 'PNL-A', '00000000-0000-0000-0000-00000000e002', 'PnL Client', 100000),
+  ('00000000-0000-0000-0000-00000000f0b1', 'PNL-B', '00000000-0000-0000-0000-00000000e002', 'PnL Client', 50000);
+insert into public.payments (id, invoice_id, amount, method) values
+  ('00000000-0000-0000-0000-0000000000a5', '00000000-0000-0000-0000-00000000f0a1', 60000, 'cash'),
+  ('00000000-0000-0000-0000-0000000000a6', '00000000-0000-0000-0000-00000000f0a1', 5000, 'cash'),
+  ('00000000-0000-0000-0000-0000000000b5', '00000000-0000-0000-0000-00000000f0b1', 20000, 'bank');
+select set_config('app.void_payment', 'on', true);
+update public.payments set voided_at = now(), void_by = '00000000-0000-0000-0000-0000000000a1', void_reason = 'fixture' where id = '00000000-0000-0000-0000-0000000000a6';
+select set_config('app.void_payment', 'off', true);
+update public.invoices set voided_at = now(), voided_by = '00000000-0000-0000-0000-0000000000a1' where id = '00000000-0000-0000-0000-00000000f0b1';
+-- expenses: e002 30000 (+ a deleted 5000), e003 2000, general 7000, general outside any range we ask for
+insert into public.expenses (id, category, amount, event_id, expense_date) values
+  ('00000000-0000-0000-0000-0000000000e1', 'Flowers', 30000, '00000000-0000-0000-0000-00000000e002', current_date),
+  ('00000000-0000-0000-0000-0000000000e2', 'Flowers', 2000, '00000000-0000-0000-0000-00000000e003', current_date),
+  ('00000000-0000-0000-0000-0000000000e3', 'Other', 7000, null, current_date),
+  ('00000000-0000-0000-0000-0000000000e4', 'Other', 9999, null, current_date - 2000);
+insert into public.expenses (id, category, amount, event_id, deleted_at)
+  values ('00000000-0000-0000-0000-0000000000e5', 'Flowers', 5000, '00000000-0000-0000-0000-00000000e002', now());
+
 -- ===========================================================================
 -- ACCOUNTANT
 -- ===========================================================================
@@ -215,6 +244,30 @@ do $$ declare cid uuid; nm text; begin
   exception when not_null_violation or check_violation then raise notice 'PASS: invoice needs a client or a name'; end;
 end $$;
 
+-- 7. event profitability: an accountant can link expenses to events but cannot read profit data
+do $$ begin
+  update public.expenses set event_id = '00000000-0000-0000-0000-00000000e003' where id = '00000000-0000-0000-0000-0000000000e3';
+  update public.expenses set event_id = null where id = '00000000-0000-0000-0000-0000000000e3';
+  raise notice 'PASS: accountant can link and unlink an expense to an event';
+  begin update public.expenses set event_id = '00000000-0000-0000-0000-00000000e005' where id = '00000000-0000-0000-0000-0000000000e3';
+    raise exception 'FAIL: expense linked to a deleted event';
+  exception when check_violation then raise notice 'PASS: an expense cannot be linked to a deleted event'; end;
+  begin insert into public.expenses (category, amount, event_id) values ('Flowers', 100, '00000000-0000-0000-0000-0000000000ff');
+    raise exception 'FAIL: expense linked to an unknown event';
+  exception when check_violation or foreign_key_violation then raise notice 'PASS: an expense cannot be linked to an unknown event'; end;
+end $$;
+do $$ begin
+  begin perform * from public.event_pnl(current_date - 1, current_date + 400);
+    raise exception 'FAIL: accountant read the event profit report';
+  exception when insufficient_privilege then raise notice 'PASS: accountant cannot call event_pnl()'; end;
+  begin perform * from public.event_pnl_one('00000000-0000-0000-0000-00000000e002');
+    raise exception 'FAIL: accountant read one event''s profit data';
+  exception when insufficient_privilege then raise notice 'PASS: accountant cannot call event_pnl_one()'; end;
+  begin perform public.general_expenses_total(current_date - 1, current_date + 1);
+    raise exception 'FAIL: accountant read general expense totals';
+  exception when insufficient_privilege then raise notice 'PASS: accountant cannot call general_expenses_total()'; end;
+end $$;
+
 -- ===========================================================================
 -- USER WITH NO ROLE (e.g. someone who found the sign-up page)
 -- ===========================================================================
@@ -243,6 +296,12 @@ do $$ begin
   exception when insufficient_privilege then raise notice 'PASS: anon has no table access'; end;
 end $$;
 
+do $$ begin
+  begin perform * from public.event_pnl(current_date - 1, current_date + 1);
+    raise exception 'FAIL: anon can call event_pnl';
+  exception when insufficient_privilege then raise notice 'PASS: anon cannot call event_pnl()'; end;
+end $$;
+
 -- ===========================================================================
 -- ADMIN
 -- ===========================================================================
@@ -264,6 +323,44 @@ do $$ begin
     raise exception 'FAIL: admin wrote user_roles directly (only the service role should)';
   exception when insufficient_privilege then raise notice 'PASS: even admins cannot write user_roles through the API'; end;
 end $$;
+-- ADMIN: event profit report counts the right rows
+do $$ declare r record; n int; g numeric; a1 int; a2 int; begin
+  select count(*) into a1 from public.audit_logs where action = 'VIEW_EVENT_PNL';
+  select * into r from public.event_pnl(current_date, current_date + 400) where event_id = '00000000-0000-0000-0000-00000000e002';
+  if r.event_name <> 'PnL Wedding' or r.client_name <> 'PnL Client' or r.hotel_name <> 'Test Hotel' then
+    raise exception 'FAIL: event row details wrong: %', r; end if;
+  if r.invoiced <> 100000 then raise exception 'FAIL: invoiced=% (void invoice must not count; expected 100000)', r.invoiced; end if;
+  if r.received <> 60000 then raise exception 'FAIL: received=% (voided payment and void-invoice payment must not count; expected 60000)', r.received; end if;
+  if r.expenses <> 30000 then raise exception 'FAIL: expenses=% (deleted expense must not count; expected 30000)', r.expenses; end if;
+  raise notice 'PASS: invoiced / received / expenses ignore void invoices, voided payments and deleted expenses';
+
+  select * into r from public.event_pnl(current_date, current_date + 400) where event_id = '00000000-0000-0000-0000-00000000e003';
+  if r.invoiced <> 0 or r.received <> 0 or r.expenses <> 2000 then raise exception 'FAIL: event with no invoices: %', r; end if;
+  raise notice 'PASS: an event with no invoices reports zero income and its expenses';
+
+  select count(*) into n from public.event_pnl(current_date, current_date + 400)
+   where event_id in ('00000000-0000-0000-0000-00000000e004', '00000000-0000-0000-0000-00000000e005');
+  if n <> 0 then raise exception 'FAIL: out-of-range or deleted events listed'; end if;
+  raise notice 'PASS: events outside the range and deleted events are not listed';
+
+  g := public.general_expenses_total(current_date - 1, current_date + 1);
+  -- 7000 from the fixture + 2500 added by the accountant test above; linked, deleted and out-of-range expenses must not count
+  if g <> 9500 then raise exception 'FAIL: general expenses=% (expected 9500)', g; end if;
+  raise notice 'PASS: general expenses = only unlinked expenses inside the range';
+
+  select * into r from public.event_pnl_one('00000000-0000-0000-0000-00000000e002');
+  if (r.invoiced, r.received, r.expenses) <> (100000::numeric, 60000::numeric, 30000::numeric) then raise exception 'FAIL: event_pnl_one %', r; end if;
+  raise notice 'PASS: event_pnl_one matches the report';
+
+  begin perform * from public.event_pnl(current_date + 5, current_date);
+    raise exception 'FAIL: reversed range accepted';
+  exception when raise_exception then raise notice 'PASS: reversed date range rejected'; end;
+
+  select count(*) into a2 from public.audit_logs where action = 'VIEW_EVENT_PNL';
+  if a2 <= a1 then raise exception 'FAIL: viewing profit data is not audited'; end if;
+  raise notice 'PASS: viewing profit data is written to the audit log';
+end $$;
+
 -- ADMIN: soft-delete a client; the linked invoice keeps working afterwards
 do $$ declare cid uuid; n int; nm text; begin
   select id into cid from public.clients where name = 'Ayesha K. Khan';

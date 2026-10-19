@@ -52,6 +52,11 @@ export function effectiveRole(realRole: Role | null): Role | null {
 
 export const ACCOUNTANT_PAGES = ["/dashboard", "/clients", "/invoices", "/expenses", "/vendors"] as const;
 
+/** Accountants may open their pages and a single event page (without cost or profit), never the events list or reports. */
+export function accountantMayVisit(pathname: string): boolean {
+  return ACCOUNTANT_PAGES.some((p) => pathname === p || pathname.startsWith(`${p}/`)) || /^\/events\/[^/]+\/?$/.test(pathname);
+}
+
 export function useMe() {
   const q = useQuery(meQuery);
   const view = useSyncExternalStore(

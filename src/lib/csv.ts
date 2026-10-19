@@ -10,10 +10,18 @@ function cell(v: CsvCell): string {
   return `"${s.replace(/"/g, '""')}"`;
 }
 
+/**
+ * CSV text: every cell quoted, quotes doubled, CRLF between rows. Text cells that start with = + - @ (or a tab/CR)
+ * get a leading single quote so a spreadsheet cannot run them as a formula. Real numbers are written as-is,
+ * so negative amounts stay numeric.
+ */
+export function buildCsv(headers: string[], rows: CsvCell[][]): string {
+  return [headers, ...rows].map((r) => r.map(cell).join(",")).join("\r\n");
+}
+
 /** Downloads a UTF-8 CSV (with BOM so Excel shows Décor, Rs etc. correctly). */
 export function downloadCsv(filename: string, headers: string[], rows: CsvCell[][]) {
-  const body = [headers, ...rows].map((r) => r.map(cell).join(",")).join("\r\n");
-  const blob = new Blob(["﻿", body], { type: "text/csv;charset=utf-8" });
+  const blob = new Blob(["\ufeff", buildCsv(headers, rows)], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;

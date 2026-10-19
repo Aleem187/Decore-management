@@ -12,11 +12,12 @@ import {
   LogOut,
   Menu,
   BookUser,
+  TrendingUp,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useState } from "react";
 import { useLocation } from "@tanstack/react-router";
-import { ACCOUNTANT_PAGES, displayName, setViewAs, useMe, type Role } from "@/lib/auth";
+import { accountantMayVisit, displayName, setViewAs, useMe, type Role } from "@/lib/auth";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
 
 export const Route = createFileRoute("/_authenticated")({
@@ -36,6 +37,7 @@ const nav = [
   { to: "/invoices", label: "Invoices", icon: Receipt },
   { to: "/expenses", label: "Expenses", icon: Wallet },
   { to: "/vendors", label: "Vendors", icon: Truck },
+  { to: "/event-profitability", label: "Event Profitability", icon: TrendingUp, admin: true },
   { to: "/users", label: "Users", icon: UserCog, admin: true },
   { to: "/team", label: "Team & Audit", icon: Users, admin: true },
 ] as const;
@@ -115,7 +117,7 @@ function Shell() {
   const { pathname } = useLocation();
   const role = me?.role;
   useEffect(() => {
-    if (role === "accountant" && !ACCOUNTANT_PAGES.some((p) => pathname.startsWith(p))) {
+    if (role === "accountant" && !accountantMayVisit(pathname)) {
       navigate({ to: "/dashboard", replace: true });
     }
   }, [role, pathname, navigate]);

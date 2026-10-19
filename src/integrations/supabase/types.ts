@@ -578,6 +578,24 @@ export type Database = {
         Returns: boolean
       }
       is_staff: { Args: { _user_id: string }; Returns: boolean }
+      event_pnl: {
+        Args: { _from: string; _to: string }
+        Returns: {
+          event_id: string
+          event_name: string
+          event_date: string
+          client_name: string
+          hotel_name: string | null
+          invoiced: number
+          received: number
+          expenses: number
+        }[]
+      }
+      event_pnl_one: {
+        Args: { _event_id: string }
+        Returns: { invoiced: number; received: number; expenses: number }[]
+      }
+      general_expenses_total: { Args: { _from: string; _to: string }; Returns: number }
       soft_delete: { Args: { _id: string; _table: string }; Returns: undefined }
       void_invoice: { Args: { _id: string }; Returns: undefined }
       void_payment: { Args: { _id: string; _reason: string }; Returns: undefined }

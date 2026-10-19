@@ -1,5 +1,5 @@
 import { requireRole, useMe } from "@/lib/auth";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { CrudPage, StatusPill, useOptions } from "@/components/CrudPage";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -12,7 +12,7 @@ import { fmtDate, pkr } from "@/lib/format";
 
 const types = ["Wedding", "Mehndi", "Corporate", "Birthday", "Stage Decor", "Mandap / Stage", "Other"];
 
-export const Route = createFileRoute("/_authenticated/events")({
+export const Route = createFileRoute("/_authenticated/events/")({
   head: () => ({ meta: [{ title: "Events — Décor Studio" }, { name: "description", content: "Decor projects and status tracker." }, { property: "og:title", content: "Events — Décor Studio" }, { property: "og:description", content: "Decor projects and status tracker." }] }),
   beforeLoad: ({ context }) => requireRole(context.queryClient, ["admin"]),
   component: EventsPage,
@@ -48,7 +48,7 @@ function EventsPage() {
       normalize={flattenFinancials} afterSave={saveFinancials} canWrite={me?.role === "admin"} defaults={{ event_type: "Wedding", status: "upcoming" }}
       columns={[
         { key: "event_date", label: "Date", render: (r) => fmtDate(r.event_date) },
-        { key: "name", label: "Event", render: (r) => <><span className="font-medium">{r.name}</span><div className="text-xs text-muted-foreground">{r.event_type} · {r.client_name}</div></> },
+        { key: "name", label: "Event", render: (r) => <><Link to="/events/$eventId" params={{ eventId: r.id }} className="font-medium underline-offset-4 hover:underline">{r.name}</Link><div className="text-xs text-muted-foreground">{r.event_type} · {r.client_name}</div></> },
         { key: "hotels.name", label: "Hotel", render: (r) => r.hotels?.name ?? "—" },
         { key: "package_price", label: "Package", render: (r) => pkr(r.package_price) },
         { key: "estimated_cost", label: "Est. vs actual cost", render: (r) => {

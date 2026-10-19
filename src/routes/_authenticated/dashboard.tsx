@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Download } from "lucide-react";
@@ -16,20 +15,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { displayName, requireRole, useMe } from "@/lib/auth";
 import { downloadCsv, stamp } from "@/lib/csv";
 import { summarize } from "@/lib/dashboard-stats";
-import {
-  PRESET_LABEL,
-  TIME_ZONE,
-  customRange,
-  describeRange,
-  karachiDate,
-  rangeFor,
-  type RangePreset,
-} from "@/lib/date-range";
+import { karachiDate } from "@/lib/date-range";
 import { compactNumber, fmtDate, pkr } from "@/lib/format";
 import { vendorTotals } from "@/lib/vendor-ledger";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { StatusPill } from "@/components/CrudPage";
+import { RangeFilter } from "@/components/RangeFilter";
+import { useDateRange } from "@/hooks/use-date-range";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   head: () => ({
@@ -98,71 +90,11 @@ function Stat({
   );
 }
 
-function RangeFilter(props: {
-  preset: RangePreset;
-  onPreset: (p: RangePreset) => void;
-  from: string;
-  to: string;
-  onFrom: (v: string) => void;
-  onTo: (v: string) => void;
-  invalid: boolean;
-  label: string;
-}) {
-  const presets: RangePreset[] = ["this_month", "last_month", "this_year", "custom"];
-  return (
-    <div className="space-y-2">
-      <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Date range">
-        {presets.map((p) => (
-          <Button
-            key={p}
-            size="sm"
-            variant={props.preset === p ? "default" : "outline"}
-            aria-pressed={props.preset === p}
-            onClick={() => props.onPreset(p)}
-          >
-            {PRESET_LABEL[p]}
-          </Button>
-        ))}
-      </div>
-      {props.preset === "custom" && (
-        <div className="flex flex-wrap items-center gap-2">
-          <Input
-            type="date"
-            aria-label="From date"
-            className="w-40"
-            value={props.from}
-            onChange={(e) => props.onFrom(e.target.value)}
-          />
-          <span className="text-sm text-muted-foreground">to</span>
-          <Input
-            type="date"
-            aria-label="To date"
-            className="w-40"
-            value={props.to}
-            onChange={(e) => props.onTo(e.target.value)}
-          />
-        </div>
-      )}
-      <p className={`text-xs ${props.invalid ? "text-destructive" : "text-muted-foreground"}`}>
-        {props.invalid
-          ? "Pick a valid range (the start date must not be after the end date). Showing the last valid range."
-          : `${props.label} · ${TIME_ZONE}`}
-      </p>
-    </div>
-  );
-}
-
 function Dashboard() {
   const { data: me } = useMe();
   const { data } = useData();
-  const [preset, setPreset] = useState<RangePreset>("this_month");
-  const [from, setFrom] = useState(() => rangeFor("this_month").from);
-  const [to, setTo] = useState(() => karachiDate());
-  const [lastValid, setLastValid] = useState(() => rangeFor("this_month"));
-
-  const custom = customRange(from, to);
-  const range = preset === "custom" ? (custom ?? lastValid) : rangeFor(preset);
-  const invalid = preset === "custom" && !custom;
+  const dateRange = useDateRange();
+  const { range } = dateRange;
   const today = karachiDate();
   const isAdmin = me?.role === "admin";
 
@@ -206,26 +138,8 @@ function Dashboard() {
 
   const upcoming = events.filter((e) => e.event_date >= today && e.status !== "paid").slice(0, 6);
   const hotels = stats.profit?.hotels ?? [];
-  const period = describeRange(range);
+  const period = dateRange.label;
   const outstandingNote = `All unpaid invoices · ${stats.overdue > 0 ? `${pkr(stats.overdue)} overdue` : "nothing overdue"}`;
-
-  function pick(p: RangePreset) {
-    if (p === "custom") {
-      setFrom(range.from);
-      setTo(range.to);
-    } else {
-      setLastValid(rangeFor(p));
-    }
-    setPreset(p);
-  }
-  function setDate(which: "from" | "to", v: string) {
-    const nextFrom = which === "from" ? v : from;
-    const nextTo = which === "to" ? v : to;
-    if (which === "from") setFrom(v);
-    else setTo(v);
-    const ok = customRange(nextFrom, nextTo);
-    if (ok) setLastValid(ok);
-  }
 
   return (
     <div className="space-y-8">
@@ -238,16 +152,7 @@ function Dashboard() {
             Hello, {displayName(me)}
           </h1>
         </div>
-        <RangeFilter
-          preset={preset}
-          onPreset={pick}
-          from={from}
-          to={to}
-          onFrom={(v) => setDate("from", v)}
-          onTo={(v) => setDate("to", v)}
-          invalid={invalid}
-          label={period}
-        />
+        <RangeFilter range={dateRange} />
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

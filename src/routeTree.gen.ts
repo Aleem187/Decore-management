@@ -15,7 +15,7 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as NoAccessRouteImport } from './routes/no-access'
 import { Route as SetPasswordRouteImport } from './routes/set-password'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
-import { Route as AuthenticatedEventsRouteImport } from './routes/_authenticated/events'
+import { Route as AuthenticatedEventProfitabilityRouteImport } from './routes/_authenticated/event-profitability'
 import { Route as AuthenticatedExpensesRouteImport } from './routes/_authenticated/expenses'
 import { Route as AuthenticatedHotelsRouteImport } from './routes/_authenticated/hotels'
 import { Route as AuthenticatedInvoicesRouteImport } from './routes/_authenticated/invoices'
@@ -24,6 +24,8 @@ import { Route as AuthenticatedUsersRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedVendorsRouteImport } from './routes/_authenticated/vendors'
 import { Route as AuthenticatedClientsIndexRouteImport } from './routes/_authenticated/clients.index'
 import { Route as AuthenticatedClientsClientIdRouteImport } from './routes/_authenticated/clients.$clientId'
+import { Route as AuthenticatedEventsIndexRouteImport } from './routes/_authenticated/events.index'
+import { Route as AuthenticatedEventsEventIdRouteImport } from './routes/_authenticated/events.$eventId'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -54,11 +56,12 @@ const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   path: '/dashboard',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const AuthenticatedEventsRoute = AuthenticatedEventsRouteImport.update({
-  id: '/events',
-  path: '/events',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
+const AuthenticatedEventProfitabilityRoute =
+  AuthenticatedEventProfitabilityRouteImport.update({
+    id: '/event-profitability',
+    path: '/event-profitability',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedExpensesRoute = AuthenticatedExpensesRouteImport.update({
   id: '/expenses',
   path: '/expenses',
@@ -101,6 +104,18 @@ const AuthenticatedClientsClientIdRoute =
     path: '/clients/$clientId',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedEventsIndexRoute =
+  AuthenticatedEventsIndexRouteImport.update({
+    id: '/events/',
+    path: '/events/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedEventsEventIdRoute =
+  AuthenticatedEventsEventIdRouteImport.update({
+    id: '/events/$eventId',
+    path: '/events/$eventId',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -108,7 +123,7 @@ export interface FileRoutesByFullPath {
   '/no-access': typeof NoAccessRoute
   '/set-password': typeof SetPasswordRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
-  '/events': typeof AuthenticatedEventsRoute
+  '/event-profitability': typeof AuthenticatedEventProfitabilityRoute
   '/expenses': typeof AuthenticatedExpensesRoute
   '/hotels': typeof AuthenticatedHotelsRoute
   '/invoices': typeof AuthenticatedInvoicesRoute
@@ -116,7 +131,9 @@ export interface FileRoutesByFullPath {
   '/users': typeof AuthenticatedUsersRoute
   '/vendors': typeof AuthenticatedVendorsRoute
   '/clients/$clientId': typeof AuthenticatedClientsClientIdRoute
+  '/events/$eventId': typeof AuthenticatedEventsEventIdRoute
   '/clients/': typeof AuthenticatedClientsIndexRoute
+  '/events/': typeof AuthenticatedEventsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -124,7 +141,7 @@ export interface FileRoutesByTo {
   '/no-access': typeof NoAccessRoute
   '/set-password': typeof SetPasswordRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
-  '/events': typeof AuthenticatedEventsRoute
+  '/event-profitability': typeof AuthenticatedEventProfitabilityRoute
   '/expenses': typeof AuthenticatedExpensesRoute
   '/hotels': typeof AuthenticatedHotelsRoute
   '/invoices': typeof AuthenticatedInvoicesRoute
@@ -132,7 +149,9 @@ export interface FileRoutesByTo {
   '/users': typeof AuthenticatedUsersRoute
   '/vendors': typeof AuthenticatedVendorsRoute
   '/clients/$clientId': typeof AuthenticatedClientsClientIdRoute
+  '/events/$eventId': typeof AuthenticatedEventsEventIdRoute
   '/clients': typeof AuthenticatedClientsIndexRoute
+  '/events': typeof AuthenticatedEventsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -142,7 +161,7 @@ export interface FileRoutesById {
   '/no-access': typeof NoAccessRoute
   '/set-password': typeof SetPasswordRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
-  '/_authenticated/events': typeof AuthenticatedEventsRoute
+  '/_authenticated/event-profitability': typeof AuthenticatedEventProfitabilityRoute
   '/_authenticated/expenses': typeof AuthenticatedExpensesRoute
   '/_authenticated/hotels': typeof AuthenticatedHotelsRoute
   '/_authenticated/invoices': typeof AuthenticatedInvoicesRoute
@@ -150,7 +169,9 @@ export interface FileRoutesById {
   '/_authenticated/users': typeof AuthenticatedUsersRoute
   '/_authenticated/vendors': typeof AuthenticatedVendorsRoute
   '/_authenticated/clients/$clientId': typeof AuthenticatedClientsClientIdRoute
+  '/_authenticated/events/$eventId': typeof AuthenticatedEventsEventIdRoute
   '/_authenticated/clients/': typeof AuthenticatedClientsIndexRoute
+  '/_authenticated/events/': typeof AuthenticatedEventsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -160,7 +181,7 @@ export interface FileRouteTypes {
     | '/no-access'
     | '/set-password'
     | '/dashboard'
-    | '/events'
+    | '/event-profitability'
     | '/expenses'
     | '/hotels'
     | '/invoices'
@@ -168,7 +189,9 @@ export interface FileRouteTypes {
     | '/users'
     | '/vendors'
     | '/clients/$clientId'
+    | '/events/$eventId'
     | '/clients/'
+    | '/events/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -176,7 +199,7 @@ export interface FileRouteTypes {
     | '/no-access'
     | '/set-password'
     | '/dashboard'
-    | '/events'
+    | '/event-profitability'
     | '/expenses'
     | '/hotels'
     | '/invoices'
@@ -184,7 +207,9 @@ export interface FileRouteTypes {
     | '/users'
     | '/vendors'
     | '/clients/$clientId'
+    | '/events/$eventId'
     | '/clients'
+    | '/events'
   id:
     | '__root__'
     | '/'
@@ -193,7 +218,7 @@ export interface FileRouteTypes {
     | '/no-access'
     | '/set-password'
     | '/_authenticated/dashboard'
-    | '/_authenticated/events'
+    | '/_authenticated/event-profitability'
     | '/_authenticated/expenses'
     | '/_authenticated/hotels'
     | '/_authenticated/invoices'
@@ -201,7 +226,9 @@ export interface FileRouteTypes {
     | '/_authenticated/users'
     | '/_authenticated/vendors'
     | '/_authenticated/clients/$clientId'
+    | '/_authenticated/events/$eventId'
     | '/_authenticated/clients/'
+    | '/_authenticated/events/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -256,11 +283,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDashboardRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/_authenticated/events': {
-      id: '/_authenticated/events'
-      path: '/events'
-      fullPath: '/events'
-      preLoaderRoute: typeof AuthenticatedEventsRouteImport
+    '/_authenticated/event-profitability': {
+      id: '/_authenticated/event-profitability'
+      path: '/event-profitability'
+      fullPath: '/event-profitability'
+      preLoaderRoute: typeof AuthenticatedEventProfitabilityRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/expenses': {
@@ -319,12 +346,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedClientsClientIdRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/events/': {
+      id: '/_authenticated/events/'
+      path: '/events'
+      fullPath: '/events/'
+      preLoaderRoute: typeof AuthenticatedEventsIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/events/$eventId': {
+      id: '/_authenticated/events/$eventId'
+      path: '/events/$eventId'
+      fullPath: '/events/$eventId'
+      preLoaderRoute: typeof AuthenticatedEventsEventIdRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
   }
 }
 
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
-  AuthenticatedEventsRoute: typeof AuthenticatedEventsRoute
+  AuthenticatedEventProfitabilityRoute: typeof AuthenticatedEventProfitabilityRoute
   AuthenticatedExpensesRoute: typeof AuthenticatedExpensesRoute
   AuthenticatedHotelsRoute: typeof AuthenticatedHotelsRoute
   AuthenticatedInvoicesRoute: typeof AuthenticatedInvoicesRoute
@@ -332,12 +373,14 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedUsersRoute: typeof AuthenticatedUsersRoute
   AuthenticatedVendorsRoute: typeof AuthenticatedVendorsRoute
   AuthenticatedClientsClientIdRoute: typeof AuthenticatedClientsClientIdRoute
+  AuthenticatedEventsEventIdRoute: typeof AuthenticatedEventsEventIdRoute
   AuthenticatedClientsIndexRoute: typeof AuthenticatedClientsIndexRoute
+  AuthenticatedEventsIndexRoute: typeof AuthenticatedEventsIndexRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
-  AuthenticatedEventsRoute: AuthenticatedEventsRoute,
+  AuthenticatedEventProfitabilityRoute: AuthenticatedEventProfitabilityRoute,
   AuthenticatedExpensesRoute: AuthenticatedExpensesRoute,
   AuthenticatedHotelsRoute: AuthenticatedHotelsRoute,
   AuthenticatedInvoicesRoute: AuthenticatedInvoicesRoute,
@@ -345,7 +388,9 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedUsersRoute: AuthenticatedUsersRoute,
   AuthenticatedVendorsRoute: AuthenticatedVendorsRoute,
   AuthenticatedClientsClientIdRoute: AuthenticatedClientsClientIdRoute,
+  AuthenticatedEventsEventIdRoute: AuthenticatedEventsEventIdRoute,
   AuthenticatedClientsIndexRoute: AuthenticatedClientsIndexRoute,
+  AuthenticatedEventsIndexRoute: AuthenticatedEventsIndexRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =
