@@ -40,3 +40,29 @@ Branch: `security-hardening`. Nothing here has been applied to a real database.
 ## Not done / needs your decision
 - Drizzle files untouched (see the question in the hand-off message).
 - Restoring a soft-deleted record is SQL only: `update public.<table> set deleted_at = null, deleted_by = null where id = '…';` run as the database owner.
+
+---
+
+# Payments ledger (branch `payments-ledger`)
+
+Migration: `supabase/migrations/20261021000000_payments_ledger.sql` (needs the hardening migration first).
+
+## Rollout
+1. Staging first. Back up. The migration stops with a clear error if any invoice has `amount_paid` above its total; fix those rows and re-run.
+2. Each invoice with `amount_paid > 0` gets one payment: method cash, reference `MIGRATED`, note "Opening balance (migrated)", dated on the invoice's creation date. The migration checks that ledger totals equal the old stored values before it finishes.
+3. The `amount_paid` column is kept (the database now fills it in). Nothing is dropped; dropping or renaming it is a separate decision.
+
+## Manual tests — Accountant
+1. Invoices → Payments on an invoice. Totals show total / paid / remaining.
+2. Record a part payment (e.g. cash, reference "R-1"). Paid goes up, status becomes partial, remaining goes down.
+3. Try an amount above the remaining balance: refused. Exact remaining balance: accepted, status becomes paid.
+4. The history has Receipt buttons (one PDF per payment) and no Void button. There is no edit or delete anywhere.
+5. The invoice form no longer has an "Amount paid" field. Lowering the invoice amount below what is already paid is refused.
+6. Download the Invoice PDF: payments list, totals and a PAID IN FULL / PARTIALLY PAID / UNPAID stamp.
+
+## Manual tests — Admin
+1. Same as above, plus a Void button per payment. Click it, enter a reason (3+ characters), confirm.
+2. The payment is struck through with the reason; paid and remaining update; the status moves back (e.g. paid → partial). The voided payment has no Receipt button.
+3. Record a new payment for the freed balance. It is accepted.
+4. Team & Audit → Activity log shows the payment entries and a `VOID_PAYMENT` row.
+5. A voided invoice accepts no new payments.

@@ -22,6 +22,7 @@ export type Database = {
           record_id: string | null
           table_name: string
           user_id: string | null
+          details: Json | null
         }
         Insert: {
           action: string
@@ -30,6 +31,7 @@ export type Database = {
           record_id?: string | null
           table_name: string
           user_id?: string | null
+          details?: Json | null
         }
         Update: {
           action?: string
@@ -38,6 +40,7 @@ export type Database = {
           record_id?: string | null
           table_name?: string
           user_id?: string | null
+          details?: Json | null
         }
         Relationships: []
       }
@@ -360,6 +363,40 @@ export type Database = {
           },
         ]
       }
+      payments: {
+        Row: {
+          amount: number
+          created_at: string
+          created_by: string | null
+          id: string
+          invoice_id: string
+          method: string
+          note: string | null
+          paid_at: string
+          reference_no: string | null
+          void_by: string | null
+          void_reason: string | null
+          voided_at: string | null
+        }
+        Insert: {
+          amount: number
+          invoice_id: string
+          method: string
+          note?: string | null
+          paid_at?: string
+          reference_no?: string | null
+        }
+        Update: Record<string, never>
+        Relationships: [
+          {
+            foreignKeyName: "payments_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string
@@ -491,6 +528,7 @@ export type Database = {
       is_staff: { Args: { _user_id: string }; Returns: boolean }
       soft_delete: { Args: { _id: string; _table: string }; Returns: undefined }
       void_invoice: { Args: { _id: string }; Returns: undefined }
+      void_payment: { Args: { _id: string; _reason: string }; Returns: undefined }
     }
     Enums: {
       app_role: "admin" | "accountant"
