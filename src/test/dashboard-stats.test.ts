@@ -49,9 +49,10 @@ describe("summarize", () => {
     expect(s.invoiced).toBe(250000); // 100k + 50k + 30k + 70k (the 1 Oct Karachi invoice)
     expect(s.received).toBe(90000);
   });
-  it("outstanding and overdue", () => {
-    expect(s.outstanding).toBe(60000 + 30000 + 70000);
-    expect(s.overdue).toBe(60000);
+  it("outstanding and overdue are all-time, not limited to the range", () => {
+    // 60k + 30k + 70k (this month) + 80k from a September invoice that is also overdue
+    expect(s.outstanding).toBe(60000 + 30000 + 70000 + 80000);
+    expect(s.overdue).toBe(60000 + 80000);
   });
   it("expenses and net profit use the range only", () => {
     expect(s.expenses).toBe(25000);
@@ -86,9 +87,40 @@ describe("summarize without profit access", () => {
 });
 
 describe("summarize with nothing in range", () => {
-  it("is all zeros and flags an empty chart", () => {
+  it("has zero period figures, flags an empty chart, but still shows the all-time outstanding", () => {
     const s = summarize(input, { from: "2025-01-01", to: "2025-01-31" }, today, true);
-    expect([s.invoiced, s.received, s.expenses, s.outstanding, s.overdue]).toEqual([0, 0, 0, 0, 0]);
+    expect([s.invoiced, s.received, s.expenses]).toEqual([0, 0, 0]);
+    expect([s.outstanding, s.overdue]).toEqual([240000, 140000]);
     expect(s.hasFlow).toBe(false);
+  });
+});
+
+describe("outstanding ignores the date range", () => {
+  const ranges = [
+    { from: "2026-10-01", to: "2026-10-31" },
+    { from: "2026-09-01", to: "2026-09-30" },
+    { from: "2025-01-01", to: "2025-01-31" }, // nothing happened in this range
+    { from: "2026-10-19", to: "2026-10-19" },
+  ];
+  it("gives the same outstanding and overdue for every range", () => {
+    for (const r of ranges) {
+      const s = summarize(input, r, today, false);
+      expect(s.outstanding).toBe(240000);
+      expect(s.overdue).toBe(140000);
+    }
+  });
+  it("counts only unpaid balances: paid invoices add nothing and overpay never goes negative", () => {
+    const invoices = [
+      { amount: 100, amount_paid: 100, due_date: "2020-01-01", created_at: "2026-10-02T08:00:00Z" },
+      { amount: 100, amount_paid: 150, due_date: null, created_at: "2026-10-02T08:00:00Z" },
+    ];
+    const s = summarize({ invoices, payments: [], expenses: [], events: [] }, range, today, false);
+    expect([s.outstanding, s.overdue]).toEqual([0, 0]);
+  });
+  it("only the invoices passed in count, so void invoices (filtered out by the query) never do", () => {
+    const withoutLastMonth = input.invoices.filter((i) => i.amount !== 90000);
+    expect(
+      summarize({ ...input, invoices: withoutLastMonth }, range, today, false).outstanding,
+    ).toBe(160000);
   });
 });

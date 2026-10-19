@@ -207,7 +207,7 @@ function Dashboard() {
   const upcoming = events.filter((e) => e.event_date >= today && e.status !== "paid").slice(0, 6);
   const hotels = stats.profit?.hotels ?? [];
   const period = describeRange(range);
-  const outstandingNote = stats.overdue > 0 ? `${pkr(stats.overdue)} overdue` : "Nothing overdue";
+  const outstandingNote = `All unpaid invoices · ${stats.overdue > 0 ? `${pkr(stats.overdue)} overdue` : "nothing overdue"}`;
 
   function pick(p: RangePreset) {
     if (p === "custom") {
@@ -262,7 +262,7 @@ function Dashboard() {
           label="Outstanding"
           value={pkr(stats.outstanding)}
           tone="text-warning"
-          note={`${outstandingNote} · on invoices issued in this period`}
+          note={outstandingNote}
         />
         {isAdmin && stats.profit ? (
           <>

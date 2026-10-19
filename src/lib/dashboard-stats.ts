@@ -37,7 +37,8 @@ export type DashboardStats = {
  * Everything on the dashboard for one date range (inclusive Karachi days).
  * - Invoiced: invoices issued in the range.
  * - Received: payments dated in the range (cash basis).
- * - Outstanding / Overdue: what is still unpaid on the invoices issued in the range; overdue = due date before `today`.
+ * - Outstanding / Overdue: the ALL-TIME unpaid balance on every non-void invoice, ignoring the range;
+ *   overdue = the part of it whose due date is before `today`. The caller passes only non-void invoices.
  * - Profit (net, hotel table) is only computed when `includeProfit` is set, so an accountant's data never contains it.
  */
 export function summarize(
@@ -57,7 +58,7 @@ export function summarize(
 
   const received = sum(pays, (p) => n(p.amount));
   const expenses = sum(exps, (e) => n(e.amount));
-  const open = issued
+  const open = input.invoices
     .map((i) => ({ due: i.due_date, balance: Math.max(0, n(i.amount) - n(i.amount_paid)) }))
     .filter((i) => i.balance > 0);
 
