@@ -79,3 +79,8 @@ export async function requireRole(queryClient: QueryClient, allowed: readonly Ro
   if (!role) throw redirect({ to: "/no-access" });
   if (!allowed.includes(role)) throw redirect({ to: "/dashboard" });
 }
+
+/** Profile name, else the part of the e-mail before "@", else "there". */
+export function displayName(me: { name?: string | null; email?: string | null } | null | undefined): string {
+  return me?.name?.trim() || me?.email?.split("@")[0]?.trim() || "there";
+}
