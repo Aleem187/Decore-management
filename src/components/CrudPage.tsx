@@ -17,7 +17,7 @@ type Row = Record<string, any>;
 export type Field = {
   key: string;
   label: string;
-  type?: "text" | "number" | "date" | "select" | "textarea" | "checkbox";
+  type?: "text" | "number" | "date" | "time" | "select" | "textarea" | "checkbox";
   options?: { value: string; label: string }[];
   required?: boolean;
   /** Stored outside the main table; passed to afterSave instead of being written to it. */
@@ -43,6 +43,8 @@ export function CrudPage(props: {
   normalize?: (r: Row) => Row;
   /** Runs after the main row is saved, with its id and the full form values (for `extra` fields). */
   afterSave?: (id: string, form: Row) => Promise<void>;
+  /** Runs before saving. Throw to cancel (for example after a warning the user declined). */
+  beforeSave?: (form: Row) => Promise<void>;
 }) {
   const qc = useQueryClient();
   const { data: me } = useMe();
@@ -70,6 +72,7 @@ export function CrudPage(props: {
         if (f.type === "number") v = Number(v);
         payload[f.key] = v;
       }
+      if (props.beforeSave) await props.beforeSave(r);
       let id: string = r.id;
       if (r.id) {
         const res = await db.from(props.table).update(payload).eq("id", r.id);
@@ -190,7 +193,7 @@ export function useOptions(table: string, label = "name") {
 
 export function StatusPill({ value }: { value: string }) {
   const tone: Record<string, string> = {
-    paid: "bg-success/15 text-success", completed: "bg-success/15 text-success",
+    paid: "bg-success/15 text-success", completed: "bg-success/15 text-success", cancelled: "bg-muted text-muted-foreground line-through",
     partial: "bg-warning/20 text-accent-foreground", in_progress: "bg-warning/20 text-accent-foreground",
     unpaid: "bg-muted text-muted-foreground", upcoming: "bg-primary/10 text-primary",
     overdue: "bg-destructive/15 text-destructive",

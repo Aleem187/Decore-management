@@ -9,6 +9,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { EventChecklist } from "@/components/EventChecklist";
 import { WhatsAppButton } from "@/components/WhatsAppButton";
 import { fmtDate, pkr } from "@/lib/format";
+import { timeRange } from "@/lib/calendar";
+import { describeTimes, findVenueClashes } from "@/lib/clashes";
 
 const types = ["Wedding", "Mehndi", "Corporate", "Birthday", "Stage Decor", "Mandap / Stage", "Other"];
 
@@ -24,6 +26,32 @@ type Row = Record<string, any>; // eslint-disable-line @typescript-eslint/no-exp
 function flattenFinancials(r: Row): Row {
   const f = Array.isArray(r["event_financials"]) ? r["event_financials"][0] : r["event_financials"];
   return { ...r, package_price: Number(f?.package_price ?? 0), estimated_cost: Number(f?.estimated_cost ?? 0) };
+}
+
+// Warn (and let the admin override) when the venue already has an event at the same date and time.
+async function warnAboutVenueClash(form: Row) {
+  if (!form["hotel_id"] || !form["event_date"] || form["status"] === "cancelled") return;
+  const { data, error } = await supabase
+    .from("events")
+    .select("id, name, event_date, start_time, end_time, status, hotel_id")
+    .eq("hotel_id", form["hotel_id"])
+    .eq("event_date", form["event_date"])
+    .is("deleted_at", null);
+  if (error) throw error;
+  const target = {
+    id: form["id"] ?? "new",
+    event_date: form["event_date"],
+    start_time: form["start_time"] || null,
+    end_time: form["end_time"] || null,
+    status: form["status"] ?? "upcoming",
+    hotel_id: form["hotel_id"],
+  };
+  const clashes = findVenueClashes(target, data);
+  if (clashes.length === 0) return;
+  const lines = clashes.map((c) => `• ${c.name} (${describeTimes(c)})`).join("\n");
+  if (!window.confirm(`This venue already has an event at an overlapping time on this date:\n\n${lines}\n\nSave anyway?`)) {
+    throw new Error("Not saved: the venue is already booked");
+  }
 }
 
 async function saveFinancials(eventId: string, form: Row) {
@@ -45,9 +73,9 @@ function EventsPage() {
     <>
     <CrudPage table="events" title="Events" subtitle="Upcoming → In progress → Completed → Paid" orderBy="event_date"
       select="*, hotels(name), clients(phone, whatsapp), expenses(amount), invoices(amount_paid, voided_at), event_financials(package_price, estimated_cost)"
-      normalize={flattenFinancials} afterSave={saveFinancials} canWrite={me?.role === "admin"} defaults={{ event_type: "Wedding", status: "upcoming" }}
+      normalize={flattenFinancials} afterSave={saveFinancials} beforeSave={warnAboutVenueClash} canWrite={me?.role === "admin"} defaults={{ event_type: "Wedding", status: "upcoming" }}
       columns={[
-        { key: "event_date", label: "Date", render: (r) => fmtDate(r.event_date) },
+        { key: "event_date", label: "Date", render: (r) => <>{fmtDate(r.event_date)}<div className="text-xs text-muted-foreground">{timeRange(r.start_time, r.end_time)}</div></> },
         { key: "name", label: "Event", render: (r) => <><Link to="/events/$eventId" params={{ eventId: r.id }} className="font-medium underline-offset-4 hover:underline">{r.name}</Link><div className="text-xs text-muted-foreground">{r.event_type} · {r.client_name}</div></> },
         { key: "hotels.name", label: "Hotel", render: (r) => r.hotels?.name ?? "—" },
         { key: "package_price", label: "Package", render: (r) => pkr(r.package_price) },
@@ -69,6 +97,8 @@ function EventsPage() {
       fields={[
         { key: "name", label: "Event name", required: true },
         { key: "event_date", label: "Date", type: "date", required: true },
+        { key: "start_time", label: "Start time (optional)", type: "time" },
+        { key: "end_time", label: "End time (set both, or neither)", type: "time" },
         { key: "event_type", label: "Event type", type: "select", options: types.map((t) => ({ value: t, label: t })), required: true },
         { key: "hotel_id", label: "Hotel", type: "select", options: hotels },
         { key: "client_id", label: "Client", type: "select", options: clients },
@@ -76,7 +106,7 @@ function EventsPage() {
         { key: "client_phone", label: "Client phone" },
         { key: "package_price", label: "Package price (PKR)", type: "number", extra: true },
         { key: "estimated_cost", label: "Estimated cost (PKR)", type: "number", extra: true },
-        { key: "status", label: "Status", type: "select", options: ["upcoming", "in_progress", "completed", "paid"].map((s) => ({ value: s, label: s.replace("_", " ") })), required: true },
+        { key: "status", label: "Status", type: "select", options: ["upcoming", "in_progress", "completed", "paid", "cancelled"].map((s) => ({ value: s, label: s.replace("_", " ") })), required: true },
         { key: "notes", label: "Material checklist / notes", type: "textarea" },
       ]}
     />

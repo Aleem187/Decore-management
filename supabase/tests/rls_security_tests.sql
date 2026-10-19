@@ -51,6 +51,13 @@ insert into public.expenses (id, category, amount, event_id, expense_date) value
 insert into public.expenses (id, category, amount, event_id, deleted_at)
   values ('00000000-0000-0000-0000-0000000000e5', 'Flowers', 5000, '00000000-0000-0000-0000-00000000e002', now());
 
+-- Calendar fixtures: a disabled team member and one existing assignment
+insert into auth.users (id, email) values ('00000000-0000-0000-0000-0000000000d4', 'disabled@test.local');
+insert into public.user_roles (user_id, role) values ('00000000-0000-0000-0000-0000000000d4', 'accountant');
+update public.profiles set disabled_at = now() where id = '00000000-0000-0000-0000-0000000000d4';
+insert into public.event_staff (id, event_id, staff_id, role)
+  values ('00000000-0000-0000-0000-0000000005f1', '00000000-0000-0000-0000-00000000e002', '00000000-0000-0000-0000-0000000000b2', 'Lead decorator');
+
 -- ===========================================================================
 -- ACCOUNTANT
 -- ===========================================================================
@@ -268,6 +275,28 @@ do $$ begin
   exception when insufficient_privilege then raise notice 'PASS: accountant cannot call general_expenses_total()'; end;
 end $$;
 
+-- 8. calendar: accountants can see assignments but not change them
+do $$ declare n int; r text; begin
+  select count(*) into n from public.event_staff;
+  if n < 1 then raise exception 'FAIL: accountant cannot read event_staff'; end if;
+  raise notice 'PASS: accountant can read team assignments';
+  begin insert into public.event_staff (event_id, staff_id, role)
+    values ('00000000-0000-0000-0000-00000000e003', '00000000-0000-0000-0000-0000000000a1', 'Helper');
+    raise exception 'FAIL: accountant created an assignment';
+  exception when insufficient_privilege then raise notice 'PASS: accountant cannot assign staff'; end;
+  update public.event_staff set role = 'Hacked' where id = '00000000-0000-0000-0000-0000000005f1';
+  select role into r from public.event_staff where id = '00000000-0000-0000-0000-0000000005f1';
+  if r <> 'Lead decorator' then raise exception 'FAIL: accountant changed an assignment role to %', r; end if;
+  raise notice 'PASS: accountant cannot change an assignment (the update touches zero rows)';
+  delete from public.event_staff where id = '00000000-0000-0000-0000-0000000005f1';
+  select count(*) into n from public.event_staff where id = '00000000-0000-0000-0000-0000000005f1';
+  if n <> 1 then raise exception 'FAIL: accountant removed an assignment'; end if;
+  raise notice 'PASS: accountant cannot remove an assignment (the delete touches zero rows)';
+  begin insert into public.events (name, event_date, client_name, start_time, end_time) values ('x', current_date, 'y', '10:00', '12:00');
+    raise exception 'FAIL: accountant created an event from the calendar';
+  exception when insufficient_privilege then raise notice 'PASS: accountant cannot create events (calendar create is admin only)'; end;
+end $$;
+
 -- ===========================================================================
 -- USER WITH NO ROLE (e.g. someone who found the sign-up page)
 -- ===========================================================================
@@ -279,6 +308,8 @@ do $$ declare n int; begin
   if n <> 0 then raise exception 'FAIL: role-less user can read payments'; end if;
   select count(*) into n from public.clients;
   if n <> 0 then raise exception 'FAIL: role-less user can read clients'; end if;
+  select count(*) into n from public.event_staff;
+  if n <> 0 then raise exception 'FAIL: role-less user can read event_staff'; end if;
   begin insert into public.expenses (category, amount) values ('Flowers', 100);
     raise exception 'FAIL: role-less user inserted an expense';
   exception when insufficient_privilege then null; end;
@@ -323,6 +354,68 @@ do $$ begin
     raise exception 'FAIL: admin wrote user_roles directly (only the service role should)';
   exception when insufficient_privilege then raise notice 'PASS: even admins cannot write user_roles through the API'; end;
 end $$;
+-- ADMIN: calendar, times, cancelled status and team assignments
+do $$ declare n int; r text; begin
+  update public.events set status = 'cancelled' where id = '00000000-0000-0000-0000-00000000e003';
+  select count(*) into n from public.events where id = '00000000-0000-0000-0000-00000000e003' and status = 'cancelled';
+  if n <> 1 then raise exception 'FAIL: cannot cancel an event'; end if;
+  raise notice 'PASS: events can be cancelled';
+
+  update public.events set start_time = '19:00', end_time = '01:00' where id = '00000000-0000-0000-0000-00000000e003';
+  raise notice 'PASS: an event can run past midnight (19:00 to 01:00)';
+  begin update public.events set start_time = '19:00', end_time = null where id = '00000000-0000-0000-0000-00000000e003';
+    raise exception 'FAIL: start time without end time accepted';
+  exception when check_violation then raise notice 'PASS: start and end time must be set together'; end;
+  begin update public.events set start_time = '19:00', end_time = '19:00' where id = '00000000-0000-0000-0000-00000000e003';
+    raise exception 'FAIL: zero-length event accepted';
+  exception when check_violation then raise notice 'PASS: end time must differ from start time'; end;
+  insert into public.events (name, event_date, client_name, start_time, end_time)
+    values ('Calendar Click', current_date + 3, 'Click Client', '10:00', '14:00');
+  raise notice 'PASS: admin created an event with times';
+
+  -- assignments
+  insert into public.event_staff (event_id, staff_id, role)
+    values ('00000000-0000-0000-0000-00000000e002', '00000000-0000-0000-0000-0000000000a1', '  Supervisor ');
+  select role into r from public.event_staff where staff_id = '00000000-0000-0000-0000-0000000000a1';
+  if r <> 'Supervisor' then raise exception 'FAIL: role stored as [%]', r; end if;
+  raise notice 'PASS: admin assigned a team member (role trimmed)';
+  begin insert into public.event_staff (event_id, staff_id, role)
+    values ('00000000-0000-0000-0000-00000000e002', '00000000-0000-0000-0000-0000000000a1', 'Again');
+    raise exception 'FAIL: duplicate assignment accepted';
+  exception when unique_violation then raise notice 'PASS: the same person cannot be assigned to an event twice'; end;
+  begin insert into public.event_staff (event_id, staff_id, role)
+    values ('00000000-0000-0000-0000-00000000e004', '00000000-0000-0000-0000-0000000000d4', 'Helper');
+    raise exception 'FAIL: a disabled user was assigned';
+  exception when check_violation then raise notice 'PASS: a disabled user cannot be assigned'; end;
+  begin insert into public.event_staff (event_id, staff_id, role)
+    values ('00000000-0000-0000-0000-00000000e004', '00000000-0000-0000-0000-0000000000c3', 'Helper');
+    raise exception 'FAIL: a user without a role was assigned';
+  exception when check_violation then raise notice 'PASS: a user with no role cannot be assigned'; end;
+  begin insert into public.event_staff (event_id, staff_id, role)
+    values ('00000000-0000-0000-0000-00000000e005', '00000000-0000-0000-0000-0000000000b2', 'Helper');
+    raise exception 'FAIL: assigned to a deleted event';
+  exception when check_violation then raise notice 'PASS: nobody can be assigned to a deleted event'; end;
+  begin insert into public.event_staff (event_id, staff_id, role)
+    values ('00000000-0000-0000-0000-00000000e004', '00000000-0000-0000-0000-0000000000b2', '   ');
+    raise exception 'FAIL: blank role accepted';
+  exception when check_violation then raise notice 'PASS: a blank role is rejected'; end;
+  begin update public.event_staff set staff_id = '00000000-0000-0000-0000-0000000000b2' where staff_id = '00000000-0000-0000-0000-0000000000a1';
+    raise exception 'FAIL: assignment moved to another person';
+  exception when insufficient_privilege then raise notice 'PASS: an assignment cannot be re-pointed (remove and add instead)'; end;
+
+  update public.event_staff set role = 'Lead' where staff_id = '00000000-0000-0000-0000-0000000000a1';
+  select role into r from public.event_staff where staff_id = '00000000-0000-0000-0000-0000000000a1';
+  if r <> 'Lead' then raise exception 'FAIL: admin could not change a role'; end if;
+  delete from public.event_staff where staff_id = '00000000-0000-0000-0000-0000000000a1';
+  select count(*) into n from public.event_staff where staff_id = '00000000-0000-0000-0000-0000000000a1';
+  if n <> 0 then raise exception 'FAIL: admin could not remove an assignment'; end if;
+  raise notice 'PASS: admin can change a role and remove an assignment';
+
+  select count(*) into n from public.audit_logs where table_name = 'event_staff';
+  if n < 3 then raise exception 'FAIL: assignments are not audited (% rows)', n; end if;
+  raise notice 'PASS: assignment changes are audited';
+end $$;
+
 -- ADMIN: event profit report counts the right rows
 do $$ declare r record; n int; g numeric; a1 int; a2 int; begin
   select count(*) into a1 from public.audit_logs where action = 'VIEW_EVENT_PNL';

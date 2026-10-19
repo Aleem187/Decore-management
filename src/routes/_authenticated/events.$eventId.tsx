@@ -8,6 +8,11 @@ import { invoiceStatus } from "@/lib/invoice-status";
 import { invoiceTotals, profitOf } from "@/lib/event-pnl";
 import { paidTotal } from "@/lib/payments";
 import { StatusPill } from "@/components/CrudPage";
+import { ClashList } from "@/components/ClashList";
+import { EventTeam } from "@/components/EventTeam";
+import { findVenueClashes } from "@/lib/clashes";
+import { timeRange } from "@/lib/calendar";
+import { useSameDayEvents } from "@/hooks/use-same-day-events";
 import {
   Table,
   TableBody,
@@ -43,6 +48,29 @@ function Metric({
   );
 }
 
+/** Venue double-booking warning, shown to everyone on the team. */
+function VenueClashBanner({
+  event,
+}: {
+  event: {
+    id: string;
+    event_date: string;
+    start_time: string | null;
+    end_time: string | null;
+    status: string;
+    hotel_id: string | null;
+  };
+}) {
+  const sameDay = useSameDayEvents(event.hotel_id ? event.event_date : null);
+  const clashes = findVenueClashes(event, sameDay.events);
+  return (
+    <ClashList
+      title="This venue has another event at an overlapping time on the same date."
+      clashes={clashes}
+    />
+  );
+}
+
 function EventDetail() {
   const { eventId } = Route.useParams();
   const { data: me } = useMe();
@@ -56,7 +84,7 @@ function EventDetail() {
         supabase
           .from("events")
           .select(
-            "id, name, event_date, event_type, status, client_id, client_name, hotels(name), clients(name)",
+            "id, name, event_date, start_time, end_time, hotel_id, event_type, status, client_id, client_name, hotels(name), clients(name)",
           )
           .eq("id", eventId)
           .is("deleted_at", null)
@@ -142,6 +170,7 @@ function EventDetail() {
         <h1 className="break-words text-3xl font-semibold sm:text-4xl">{event.name}</h1>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
           <span>{fmtDate(event.event_date)}</span>
+          <span>{timeRange(event.start_time, event.end_time)}</span>
           <span>{event.event_type}</span>
           <span>{hotel}</span>
           {event.client_id ? (
@@ -158,6 +187,8 @@ function EventDetail() {
           <StatusPill value={event.status} />
         </div>
       </div>
+
+      <VenueClashBanner event={event} />
 
       <div className={`grid gap-3 sm:grid-cols-2 ${isAdmin ? "lg:grid-cols-4" : ""}`}>
         <Metric label="Total invoiced" value={pkr(invoiced)} note="Void invoices excluded" />
@@ -225,6 +256,8 @@ function EventDetail() {
           </Table>
         </div>
       </section>
+
+      {isAdmin && <EventTeam event={event} />}
 
       {isAdmin && (
         <section className="space-y-2">

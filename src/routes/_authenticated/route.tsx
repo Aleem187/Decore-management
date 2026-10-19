@@ -13,6 +13,7 @@ import {
   Menu,
   BookUser,
   TrendingUp,
+  CalendarDays,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useState } from "react";
@@ -31,6 +32,7 @@ export const Route = createFileRoute("/_authenticated")({
 
 const nav = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { to: "/calendar", label: "Calendar", icon: CalendarDays },
   { to: "/events", label: "Events", icon: CalendarHeart, admin: true },
   { to: "/hotels", label: "Hotels", icon: Hotel, admin: true },
   { to: "/clients", label: "Clients", icon: BookUser },

@@ -118,3 +118,38 @@ Migration: `supabase/migrations/20261023000000_event_profitability.sql` (after t
 2. Sidebar has no Event Profitability. Opening /event-profitability or /events goes back to the dashboard.
 3. Invoices → click an event name: the event page shows only Total invoiced and Total received and the invoice list, with the note that costs and profit are admin only. No expenses, no profit.
 4. In the browser console, calling the profit functions (for example `event_pnl`) through the API is refused (permission denied).
+
+---
+
+# Events calendar (branch `calendar`)
+
+Migration: `supabase/migrations/20261024000000_events_calendar.sql` (after the event profitability migration).
+
+## What it adds
+- A `cancelled` event status, optional `start_time` / `end_time` on events (both or neither; an end at or before the start means the event runs past midnight), and an `event_staff` table that assigns existing team members (rows of `profiles`, people with a login and a role) to events.
+- Admins create, change and remove assignments; admins and accountants can read them. Removing an assignment really deletes the row (it is a link table); the audit log keeps the record.
+- Names of assigned people are shown to admins only, because accountants cannot read other people's profiles.
+
+## Clash rules (src/lib/clashes.ts)
+- Only live events count: cancelled and soft-deleted events are ignored. Completed and paid events still count.
+- Same date is required. Times overlap when each starts before the other ends; back-to-back events (11:00 end, 11:00 start) do not clash.
+- An event with no times is treated as all day, so it clashes with anything else that day.
+- A venue clash needs the same hotel; an event with no hotel never clashes on venue. Staff clashes compare events the person is already assigned to.
+- Clashes only warn. Admins can continue after a confirmation; the database does not block double-booking.
+
+## Rollout
+1. Staging first, with a backup. Adding an enum value cannot be undone in Postgres.
+2. `alter type ... add value` and the first use of `cancelled` must be in separate transactions; the migration does not use it itself.
+
+## Manual tests — Admin
+1. Calendar (sidebar). Switch Month / Week / List; Previous / Today / Next; statuses are coloured and a legend is shown.
+2. Month view on a laptop: click an empty day → "New event" dialog for that date. On a phone: tap a day → a panel lists its events and has "Add event".
+3. Create an event with a start and end time and a hotel. Create a second one at the same hotel, overlapping: a yellow warning appears; "Create event" turns into a confirmation, "Create anyway" saves it. A different hotel, a different day, or non-overlapping times shows no warning. Mark one cancelled and the warning disappears.
+4. Click an event → /events/<id>. Its Team section: choose a person and a role, Assign. Assign the same person to an overlapping event on the same day → warning with the other event, "Assign anyway" / "Cancel". The first event now shows "Also on …" under that person.
+5. Events page: edit an event's date, hotel or times; if it double-books the venue the browser asks for confirmation before saving.
+6. Set an event to cancelled: it is greyed and struck through on the calendar, and no longer appears in "Upcoming events" or Hotel performance on the dashboard.
+
+## Manual tests — Accountant
+1. Calendar loads in all three views; there is no "New event" button, clicking a day only selects it.
+2. Click an event → its page shows times, invoiced and received, and any venue-clash warning, but no Team section, expenses or profit.
+3. At 375px the month grid shows coloured dots, the week view stacks day by day, the list view scrolls normally.

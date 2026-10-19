@@ -104,7 +104,7 @@ function Dashboard() {
           invoices: data.invoices,
           payments: data.payments,
           expenses: data.expenses,
-          events: data.events.map((e) => ({
+          events: data.events.filter((e) => e.status !== "cancelled").map((e) => ({
             id: e.id,
             event_date: e.event_date,
             hotel: (e.hotels as { name: string } | null)?.name ?? null,
@@ -136,7 +136,7 @@ function Dashboard() {
       0,
     ) + expenses.filter((e) => !e.vendor_id && !e.paid).reduce((s, e) => s + Number(e.amount), 0);
 
-  const upcoming = events.filter((e) => e.event_date >= today && e.status !== "paid").slice(0, 6);
+  const upcoming = events.filter((e) => e.event_date >= today && e.status !== "paid" && e.status !== "cancelled").slice(0, 6);
   const hotels = stats.profit?.hotels ?? [];
   const period = dateRange.label;
   const outstandingNote = `All unpaid invoices · ${stats.overdue > 0 ? `${pkr(stats.overdue)} overdue` : "nothing overdue"}`;

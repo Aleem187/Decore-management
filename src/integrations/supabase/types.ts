@@ -59,6 +59,8 @@ export type Database = {
           deleted_at: string | null
           deleted_by: string | null
           client_id: string | null
+          start_time: string | null
+          end_time: string | null
         }
         Insert: {
           client_name: string
@@ -74,6 +76,8 @@ export type Database = {
           deleted_at?: string | null
           deleted_by?: string | null
           client_id?: string | null
+          start_time?: string | null
+          end_time?: string | null
         }
         Update: {
           client_name?: string
@@ -89,6 +93,8 @@ export type Database = {
           deleted_at?: string | null
           deleted_by?: string | null
           client_id?: string | null
+          start_time?: string | null
+          end_time?: string | null
         }
         Relationships: [
           {
@@ -275,6 +281,40 @@ export type Database = {
           whatsapp?: string | null
         }
         Relationships: []
+      }
+      event_staff: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          event_id: string
+          id: string
+          role: string
+          staff_id: string
+        }
+        Insert: {
+          event_id: string
+          role?: string
+          staff_id: string
+        }
+        Update: {
+          role?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_staff_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_staff_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       event_financials: {
         Row: {
@@ -602,7 +642,7 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "accountant"
-      event_status: "upcoming" | "in_progress" | "completed" | "paid"
+      event_status: "upcoming" | "in_progress" | "completed" | "paid" | "cancelled"
       invoice_status: "unpaid" | "partial" | "paid" | "overdue"
     }
     CompositeTypes: {
@@ -732,7 +772,7 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "accountant"],
-      event_status: ["upcoming", "in_progress", "completed", "paid"],
+      event_status: ["upcoming", "in_progress", "completed", "paid", "cancelled"],
       invoice_status: ["unpaid", "partial", "paid", "overdue"],
     },
   },
