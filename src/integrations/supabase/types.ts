@@ -58,6 +58,7 @@ export type Database = {
           status: Database["public"]["Enums"]["event_status"]
           deleted_at: string | null
           deleted_by: string | null
+          client_id: string | null
         }
         Insert: {
           client_name: string
@@ -72,6 +73,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["event_status"]
           deleted_at?: string | null
           deleted_by?: string | null
+          client_id?: string | null
         }
         Update: {
           client_name?: string
@@ -86,8 +88,16 @@ export type Database = {
           status?: Database["public"]["Enums"]["event_status"]
           deleted_at?: string | null
           deleted_by?: string | null
+          client_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "events_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "events_hotel_id_fkey"
             columns: ["hotel_id"]
@@ -234,6 +244,38 @@ export type Database = {
         }
         Relationships: []
       }
+      clients: {
+        Row: {
+          address: string | null
+          created_at: string
+          created_by: string | null
+          deleted_at: string | null
+          deleted_by: string | null
+          email: string | null
+          id: string
+          name: string
+          notes: string | null
+          phone: string | null
+          whatsapp: string | null
+        }
+        Insert: {
+          address?: string | null
+          email?: string | null
+          name: string
+          notes?: string | null
+          phone?: string | null
+          whatsapp?: string | null
+        }
+        Update: {
+          address?: string | null
+          email?: string | null
+          name?: string
+          notes?: string | null
+          phone?: string | null
+          whatsapp?: string | null
+        }
+        Relationships: []
+      }
       event_financials: {
         Row: {
           event_id: string
@@ -320,6 +362,7 @@ export type Database = {
           deleted_by: string | null
           voided_at: string | null
           voided_by: string | null
+          client_id: string | null
         }
         Insert: {
           amount?: number
@@ -336,6 +379,7 @@ export type Database = {
           deleted_by?: string | null
           voided_at?: string | null
           voided_by?: string | null
+          client_id?: string | null
         }
         Update: {
           amount?: number
@@ -352,8 +396,16 @@ export type Database = {
           deleted_by?: string | null
           voided_at?: string | null
           voided_by?: string | null
+          client_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "invoices_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "invoices_event_id_fkey"
             columns: ["event_id"]

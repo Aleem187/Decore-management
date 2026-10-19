@@ -149,6 +149,72 @@ do $$ begin
   raise notice 'PASS: accountant can add expenses and vendors';
 end $$;
 
+-- 6. clients: accountants can view, add and edit, never delete
+do $$ declare cid uuid; ph text; nm text; begin
+  insert into public.clients (name, phone, whatsapp, email)
+  values ('  Ayesha Khan ', '0300-1234567', '+92 321 7654321', 'ayesha@example.com') returning id, phone, name into cid, ph, nm;
+  if ph <> '923001234567' or nm <> 'Ayesha Khan' then raise exception 'FAIL: stored phone=% name=%', ph, nm; end if;
+  raise notice 'PASS: accountant added a client; phone normalised to 92xxxxxxxxxx, name trimmed';
+
+  update public.clients set notes = 'VIP', phone = '0092 300 1234567' where id = cid;
+  select phone into ph from public.clients where id = cid;
+  if ph <> '923001234567' then raise exception 'FAIL: phone after edit %', ph; end if;
+  raise notice 'PASS: accountant edited a client';
+
+  begin insert into public.clients (name, phone) values ('Bad Phone', '12345');
+    raise exception 'FAIL: invalid phone accepted';
+  exception when check_violation then raise notice 'PASS: invalid phone rejected'; end;
+  begin insert into public.clients (name) values ('   ');
+    raise exception 'FAIL: blank name accepted';
+  exception when check_violation then raise notice 'PASS: blank name rejected'; end;
+  begin insert into public.clients (name, email) values ('Bad Email', 'not-an-email');
+    raise exception 'FAIL: invalid email accepted';
+  exception when check_violation then raise notice 'PASS: invalid email rejected'; end;
+
+  begin delete from public.clients where id = cid;
+    raise exception 'FAIL: accountant deleted a client';
+  exception when insufficient_privilege then raise notice 'PASS: accountant cannot DELETE clients'; end;
+  begin update public.clients set deleted_at = now() where id = cid;
+    raise exception 'FAIL: accountant soft-deleted a client with UPDATE';
+  exception when insufficient_privilege then raise notice 'PASS: accountant cannot set clients.deleted_at'; end;
+  begin perform public.soft_delete('clients', cid);
+    raise exception 'FAIL: accountant used soft_delete on a client';
+  exception when insufficient_privilege then raise notice 'PASS: accountant cannot call soft_delete() on clients'; end;
+  begin update public.clients set created_by = null where id = cid;
+    raise exception 'FAIL: accountant rewrote created_by';
+  exception when insufficient_privilege then raise notice 'PASS: accountant cannot change created_by'; end;
+end $$;
+
+-- phone normaliser (must match src/lib/phone.ts)
+do $$ declare c text; begin
+  foreach c in array array['0300-1234567','+92 300 1234567','0092 300 1234567','923001234567','3001234567','+92 (0)300 1234567','(0300) 123 4567'] loop
+    if public.normalize_pk_phone(c) is distinct from '923001234567' then raise exception 'FAIL: % -> %', c, public.normalize_pk_phone(c); end if;
+  end loop;
+  foreach c in array array['030012345','12345','+1 202 555 0100','92300123456','abc',''] loop
+    if public.normalize_pk_phone(c) is not null then raise exception 'FAIL: % should be invalid', c; end if;
+  end loop;
+  raise notice 'PASS: normalize_pk_phone accepts 03xx / +92 / 0092 / spaces / dashes and rejects bad lengths';
+end $$;
+
+-- linking keeps the copied name in step, and renames propagate
+do $$ declare cid uuid; nm text; begin
+  select id into cid from public.clients where name = 'Ayesha Khan';
+  update public.invoices set client_id = cid where id = '00000000-0000-0000-0000-00000000f001';
+  select client_name into nm from public.invoices where id = '00000000-0000-0000-0000-00000000f001';
+  if nm <> 'Ayesha Khan' then raise exception 'FAIL: invoice client_name=% after linking', nm; end if;
+  update public.clients set name = 'Ayesha K. Khan' where id = cid;
+  select client_name into nm from public.invoices where id = '00000000-0000-0000-0000-00000000f001';
+  if nm <> 'Ayesha K. Khan' then raise exception 'FAIL: rename did not propagate, got %', nm; end if;
+  raise notice 'PASS: linking an invoice copies the client name; renaming the client updates it';
+  insert into public.invoices (invoice_no, client_id, amount) values ('T-CLI', cid, 5000);
+  select client_name into nm from public.invoices where invoice_no = 'T-CLI';
+  if nm <> 'Ayesha K. Khan' then raise exception 'FAIL: invoice created with only client_id has client_name=%', nm; end if;
+  raise notice 'PASS: an invoice can be created with just a client (name filled in by the database)';
+  begin insert into public.invoices (invoice_no, amount) values ('T-NOCLIENT', 1000);
+    raise exception 'FAIL: invoice without client or name accepted';
+  exception when not_null_violation or check_violation then raise notice 'PASS: invoice needs a client or a name'; end;
+end $$;
+
 -- ===========================================================================
 -- USER WITH NO ROLE (e.g. someone who found the sign-up page)
 -- ===========================================================================
@@ -158,6 +224,8 @@ do $$ declare n int; begin
   if n <> 0 then raise exception 'FAIL: role-less user can read invoices'; end if;
   select count(*) into n from public.payments;
   if n <> 0 then raise exception 'FAIL: role-less user can read payments'; end if;
+  select count(*) into n from public.clients;
+  if n <> 0 then raise exception 'FAIL: role-less user can read clients'; end if;
   begin insert into public.expenses (category, amount) values ('Flowers', 100);
     raise exception 'FAIL: role-less user inserted an expense';
   exception when insufficient_privilege then null; end;
@@ -187,13 +255,33 @@ do $$ declare n int; begin
   if n = 0 then raise exception 'FAIL: admin cannot read audit_logs'; end if;
   select count(*) into n from public.event_financials;
   if n = 0 then raise exception 'FAIL: admin cannot read event_financials'; end if;
-  raise notice 'PASS: admin can read audit_logs and event_financials';
+  select count(*) into n from public.audit_logs where table_name = 'clients';
+  if n = 0 then raise exception 'FAIL: client changes are not audited'; end if;
+  raise notice 'PASS: admin can read audit_logs (including client changes) and event_financials';
 end $$;
 do $$ begin
   begin insert into public.user_roles (user_id, role) values ('00000000-0000-0000-0000-0000000000c3', 'accountant');
     raise exception 'FAIL: admin wrote user_roles directly (only the service role should)';
   exception when insufficient_privilege then raise notice 'PASS: even admins cannot write user_roles through the API'; end;
 end $$;
+-- ADMIN: soft-delete a client; the linked invoice keeps working afterwards
+do $$ declare cid uuid; n int; nm text; begin
+  select id into cid from public.clients where name = 'Ayesha K. Khan';
+  insert into public.events (name, event_date, client_id) values ('Linked Event', current_date + 5, cid);
+  select client_name into nm from public.events where name = 'Linked Event';
+  if nm <> 'Ayesha K. Khan' then raise exception 'FAIL: event created with only client_id has client_name=%', nm; end if;
+  raise notice 'PASS: an event can be created with just a client';
+  perform public.soft_delete('clients', cid);
+  select count(*) into n from public.clients where id = cid;
+  if n <> 0 then raise exception 'FAIL: soft-deleted client is still visible'; end if;
+  select client_name into nm from public.invoices where id = '00000000-0000-0000-0000-00000000f001';
+  if nm <> 'Ayesha K. Khan' then raise exception 'FAIL: invoice lost its client name'; end if;
+  begin delete from public.clients;
+    raise exception 'FAIL: admin hard-deleted clients';
+  exception when insufficient_privilege then raise notice 'PASS: nobody can hard-delete clients'; end;
+  raise notice 'PASS: admin soft-deleted a client; the invoice keeps its copied name';
+end $$;
+
 -- ADMIN: voiding a payment is audited and restores the balance
 do $$ declare pid uuid; paid numeric; st public.invoice_status; n int; begin
   select id into pid from public.payments where reference_no = 'R-1';

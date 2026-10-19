@@ -50,7 +50,7 @@ export function effectiveRole(realRole: Role | null): Role | null {
   return realRole === "admin" ? getViewAs() ?? "admin" : realRole;
 }
 
-export const ACCOUNTANT_PAGES = ["/dashboard", "/invoices", "/expenses", "/vendors"] as const;
+export const ACCOUNTANT_PAGES = ["/dashboard", "/clients", "/invoices", "/expenses", "/vendors"] as const;
 
 export function useMe() {
   const q = useQuery(meQuery);

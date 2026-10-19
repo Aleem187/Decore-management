@@ -66,3 +66,29 @@ Migration: `supabase/migrations/20261021000000_payments_ledger.sql` (needs the h
 3. Record a new payment for the freed balance. It is accepted.
 4. Team & Audit → Activity log shows the payment entries and a `VOID_PAYMENT` row.
 5. A voided invoice accepts no new payments.
+
+---
+
+# Clients module (branch `clients-module`)
+
+Migration: `supabase/migrations/20261022000000_clients.sql` (after the hardening and payments migrations).
+
+## Rollout
+1. Staging first, with a backup. The migration prints a notice such as "N clients created, X events and Y invoices linked by name".
+2. Existing columns are untouched. Clients are created from distinct names (ignoring case and extra spaces) on events and invoices; phones come from events and are cleaned to 92xxxxxxxxxx (invalid ones are dropped). Two different people with the same name become ONE client: review the Clients list afterwards.
+3. Invoices or events with a blank name stay unlinked.
+4. From now on, picking a client on an event or invoice copies the client's name (and phone, for events) into the old columns, and renaming a client updates them (void invoices keep their old name).
+
+## Manual tests — Accountant
+1. Clients page: list loads, search by name, by email and by phone typed as 0300… (finds numbers stored as 92300…). Next/Previous change pages; with more than 20 clients the counter reads "Showing 21–40 of N".
+2. Add client: blank name → error; phone "12345" → error; phone "0300-1234567" shows "Will be saved as +92 300 1234567"; saved list shows +92 300 1234567.
+3. Edit a client. There is no Delete button anywhere.
+4. Invoices → add an invoice choosing the client; leave "Client name" empty. It saves, and the Client column shows the client's name. Same on Events (admin).
+5. Open the client: totals Invoiced / Received / Outstanding match the invoices and payments. Record a payment on one of their invoices and reload: Received goes up and Outstanding down.
+6. WhatsApp buttons open WhatsApp with the client's number and the message.
+
+## Manual tests — Admin
+1. Everything above, plus a Delete (trash) icon on the list and a Delete button on the detail page. After deleting, the client disappears from the list and pickers; their events and invoices keep their name and still accept payments.
+2. Rename a client: their events and open invoices show the new name.
+3. Team & Audit → Activity log shows client inserts, updates and deletes.
+4. At 375px: the clients table hides Email/Added columns, buttons wrap, the detail page cards stack.

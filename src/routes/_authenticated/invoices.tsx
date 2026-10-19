@@ -31,6 +31,7 @@ const statusOf = (r: Record<string, unknown>) =>
 
 function InvoicesPage() {
   const events = useOptions("events");
+  const clients = useOptions("clients");
   const qc = useQueryClient();
   const { data: me } = useMe();
   const isAdmin = me?.role === "admin";
@@ -50,7 +51,7 @@ function InvoicesPage() {
   return (
     <>
     <CrudPage table="invoices" title="Invoices" subtitle="Paid amount and status are calculated from recorded payments" orderBy="created_at"
-      select="*, events(name, event_date, client_phone)" canWrite defaults={{ kind: "Advance", invoice_no: `INV-${Date.now().toString().slice(-6)}` }}
+      select="*, events(name, event_date, client_phone), clients(phone, whatsapp)" canWrite defaults={{ kind: "Advance", invoice_no: `INV-${Date.now().toString().slice(-6)}` }}
       summary={(rows) => {
         const live = rows.filter((r) => !r.voided_at);
         const total = live.reduce((s, r) => s + Number(r.amount), 0);
@@ -77,7 +78,7 @@ function InvoicesPage() {
             <Button size="sm" variant="outline" onClick={() => setPaymentsFor(r as unknown as InvoicePdfData & { voided_at: string | null })}><Wallet className="h-4 w-4" />Payments</Button>
             <Button size="sm" variant="outline" onClick={() => setItemsFor({ id: r.id, no: r.invoice_no, voided: !!r.voided_at })}><ListPlus className="h-4 w-4" />Items</Button>
             {isAdmin && !r.voided_at && <Button size="sm" variant="outline" onClick={() => voidInvoice(r.id)}><Ban className="h-4 w-4" />Void</Button>}
-            <WhatsAppButton update={{ clientName: r.client_name, eventName: r.events?.name, eventDate: r.events?.event_date, total: r.amount, paid: r.amount_paid, phone: r.events?.client_phone }} />
+            <WhatsAppButton update={{ clientName: r.client_name, eventName: r.events?.name, eventDate: r.events?.event_date, total: r.amount, paid: r.amount_paid, phone: r.clients?.whatsapp ?? r.clients?.phone ?? r.events?.client_phone }} />
           </div>
         ) },
       ]}
@@ -96,7 +97,8 @@ function InvoicesPage() {
       fields={[
         { key: "invoice_no", label: "Invoice number", required: true },
         { key: "event_id", label: "Event", type: "select", options: events },
-        { key: "client_name", label: "Client name", required: true },
+        { key: "client_id", label: "Client", type: "select", options: clients },
+        { key: "client_name", label: "Client name (only if not in the list above)" },
         { key: "kind", label: "Type", type: "select", options: ["Advance", "Remaining Balance", "Extra Charges", "Full"].map((k) => ({ value: k, label: k })), required: true },
         { key: "amount", label: "Amount (PKR) — set automatically when the invoice has items", type: "number", required: true },
         { key: "due_date", label: "Due date", type: "date" },

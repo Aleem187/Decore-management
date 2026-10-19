@@ -39,11 +39,12 @@ async function saveFinancials(eventId: string, form: Row) {
 function EventsPage() {
   const { data: me } = useMe();
   const hotels = useOptions("hotels");
+  const clients = useOptions("clients");
   const [checklist, setChecklist] = useState<{ id: string; name: string } | null>(null);
   return (
     <>
     <CrudPage table="events" title="Events" subtitle="Upcoming → In progress → Completed → Paid" orderBy="event_date"
-      select="*, hotels(name), expenses(amount), invoices(amount_paid, voided_at), event_financials(package_price, estimated_cost)"
+      select="*, hotels(name), clients(phone, whatsapp), expenses(amount), invoices(amount_paid, voided_at), event_financials(package_price, estimated_cost)"
       normalize={flattenFinancials} afterSave={saveFinancials} canWrite={me?.role === "admin"} defaults={{ event_type: "Wedding", status: "upcoming" }}
       columns={[
         { key: "event_date", label: "Date", render: (r) => fmtDate(r.event_date) },
@@ -60,7 +61,7 @@ function EventsPage() {
         ) },
         { key: "whatsapp", label: "Client", render: (r) => (
           <WhatsAppButton update={{
-            clientName: r.client_name, eventName: r.name, eventDate: r.event_date, total: r.package_price, phone: r.client_phone,
+            clientName: r.client_name, eventName: r.name, eventDate: r.event_date, total: r.package_price, phone: r.clients?.whatsapp ?? r.clients?.phone ?? r.client_phone,
             paid: (r.invoices ?? []).filter((i: { voided_at: string | null }) => !i.voided_at).reduce((s: number, i: { amount_paid: number }) => s + Number(i.amount_paid), 0),
           }} />
         ) },
@@ -70,7 +71,8 @@ function EventsPage() {
         { key: "event_date", label: "Date", type: "date", required: true },
         { key: "event_type", label: "Event type", type: "select", options: types.map((t) => ({ value: t, label: t })), required: true },
         { key: "hotel_id", label: "Hotel", type: "select", options: hotels },
-        { key: "client_name", label: "Client name", required: true },
+        { key: "client_id", label: "Client", type: "select", options: clients },
+        { key: "client_name", label: "Client name (only if not in the list above)" },
         { key: "client_phone", label: "Client phone" },
         { key: "package_price", label: "Package price (PKR)", type: "number", extra: true },
         { key: "estimated_cost", label: "Estimated cost (PKR)", type: "number", extra: true },
