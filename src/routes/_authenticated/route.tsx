@@ -14,6 +14,8 @@ import {
   BookUser,
   TrendingUp,
   CalendarDays,
+  HardHat,
+  ClipboardCheck,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useState } from "react";
@@ -36,6 +38,8 @@ const nav = [
   { to: "/events", label: "Events", icon: CalendarHeart, admin: true },
   { to: "/hotels", label: "Hotels", icon: Hotel, admin: true },
   { to: "/clients", label: "Clients", icon: BookUser },
+  { to: "/staff", label: "Staff", icon: HardHat },
+  { to: "/attendance", label: "Attendance", icon: ClipboardCheck },
   { to: "/invoices", label: "Invoices", icon: Receipt },
   { to: "/expenses", label: "Expenses", icon: Wallet },
   { to: "/vendors", label: "Vendors", icon: Truck },

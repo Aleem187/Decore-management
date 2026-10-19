@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
@@ -6,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { describeTimes, findStaffClashes, type ClashEvent } from "@/lib/clashes";
 import { dayLabel } from "@/lib/calendar";
 import { useSameDayEvents } from "@/hooks/use-same-day-events";
+import { useStaffMembers } from "@/hooks/use-staff-members";
 import { useTeamMembers } from "@/hooks/use-team-members";
 import { ClashList } from "@/components/ClashList";
 import { Button } from "@/components/ui/button";
@@ -21,26 +23,30 @@ const ROLE_SUGGESTIONS = [
   "Supervisor",
 ];
 
-/** Admin-only: who is working this event. Warns before double-booking someone; the admin can still go ahead. */
+/**
+ * Admin-only: who is working this event. New assignments are staff members (the Staff page); assignments
+ * made earlier to login users still show and can be removed. Warns before double-booking someone.
+ */
 export function EventTeam({ event }: { event: ClashEvent & { name: string } }) {
   const qc = useQueryClient();
   const key = ["event-team", event.id];
-  const [staffId, setStaffId] = useState("");
+  const [memberId, setMemberId] = useState("");
   const [role, setRole] = useState(DEFAULT_ROLE);
   const [pending, setPending] = useState<{
-    staffId: string;
+    memberId: string;
     name: string;
     clashes: ClashEvent[];
   } | null>(null);
 
-  const team = useTeamMembers(true);
+  const staff = useStaffMembers();
+  const logins = useTeamMembers(true); // names for assignments made before the Staff module existed
   const sameDay = useSameDayEvents(event.event_date);
   const { data: assigned = [], isLoading } = useQuery({
     queryKey: key,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("event_staff")
-        .select("id, staff_id, role")
+        .select("id, staff_id, staff_member_id, role")
         .eq("event_id", event.id)
         .order("created_at");
       if (error) throw error;
@@ -48,9 +54,16 @@ export function EventTeam({ event }: { event: ClashEvent & { name: string } }) {
     },
   });
 
-  const nameOf = (id: string) => team.data?.find((m) => m.id === id)?.name ?? "Former team member";
-  const taken = new Set(assigned.map((a) => a.staff_id));
-  const available = (team.data ?? []).filter((m) => !taken.has(m.id));
+  const personKey = (a: { staff_id: string | null; staff_member_id: string | null }) =>
+    (a.staff_member_id ?? a.staff_id) as string;
+  const nameOf = (a: { staff_id: string | null; staff_member_id: string | null }) =>
+    a.staff_member_id
+      ? (staff.data?.find((m) => m.id === a.staff_member_id)?.name ?? "Former staff member")
+      : (logins.data?.find((m) => m.id === a.staff_id)?.name ?? "Login user");
+  const staffName = (id: string) => staff.data?.find((m) => m.id === id)?.name ?? "this person";
+
+  const taken = new Set(assigned.map((a) => a.staff_member_id));
+  const available = (staff.data ?? []).filter((m) => m.active && !taken.has(m.id));
 
   const refresh = () => {
     qc.invalidateQueries({ queryKey: key });
@@ -60,17 +73,19 @@ export function EventTeam({ event }: { event: ClashEvent & { name: string } }) {
   const onError = (e: Error) => toast.error(e.message);
 
   const add = useMutation({
-    mutationFn: async (v: { staffId: string; role: string }) => {
-      const { error } = await supabase
-        .from("event_staff")
-        .insert({ event_id: event.id, staff_id: v.staffId, role: v.role.trim() || DEFAULT_ROLE });
+    mutationFn: async (v: { memberId: string; role: string }) => {
+      const { error } = await supabase.from("event_staff").insert({
+        event_id: event.id,
+        staff_member_id: v.memberId,
+        role: v.role.trim() || DEFAULT_ROLE,
+      });
       if (error) throw error;
     },
     onSuccess: () => {
-      setStaffId("");
+      setMemberId("");
       setPending(null);
       refresh();
-      toast.success("Team member assigned");
+      toast.success("Staff member assigned");
     },
     onError,
   });
@@ -85,13 +100,13 @@ export function EventTeam({ event }: { event: ClashEvent & { name: string } }) {
   });
 
   function tryAssign() {
-    if (!staffId) return;
-    const clashes = findStaffClashes(staffId, event, sameDay.events, sameDay.assignments);
+    if (!memberId) return;
+    const clashes = findStaffClashes(memberId, event, sameDay.events, sameDay.assignments);
     if (clashes.length > 0) {
-      setPending({ staffId, name: nameOf(staffId), clashes });
+      setPending({ memberId, name: staffName(memberId), clashes });
       return;
     }
-    add.mutate({ staffId, role });
+    add.mutate({ memberId, role });
   }
 
   return (
@@ -104,14 +119,36 @@ export function EventTeam({ event }: { event: ClashEvent & { name: string } }) {
           <li className="p-4 text-center text-sm text-muted-foreground">Nobody assigned yet.</li>
         )}
         {assigned.map((a) => {
-          const clashes = findStaffClashes(a.staff_id, event, sameDay.events, sameDay.assignments);
+          const clashes = findStaffClashes(
+            personKey(a),
+            event,
+            sameDay.events,
+            sameDay.assignments,
+          );
           return (
             <li
               key={a.id}
               className="flex flex-wrap items-center justify-between gap-2 p-3 text-sm"
             >
               <div className="min-w-0">
-                <div className="font-medium">{nameOf(a.staff_id)}</div>
+                <div className="font-medium">
+                  {a.staff_member_id ? (
+                    <Link
+                      to="/staff/$staffId"
+                      params={{ staffId: a.staff_member_id }}
+                      className="underline-offset-4 hover:underline"
+                    >
+                      {nameOf(a)}
+                    </Link>
+                  ) : (
+                    <>
+                      {nameOf(a)}{" "}
+                      <span className="text-xs font-normal text-muted-foreground">
+                        (login user)
+                      </span>
+                    </>
+                  )}
+                </div>
                 <div className="text-xs text-muted-foreground">{a.role}</div>
                 {clashes.length > 0 && (
                   <div className="mt-1 flex items-start gap-1 text-xs text-foreground">
@@ -132,9 +169,9 @@ export function EventTeam({ event }: { event: ClashEvent & { name: string } }) {
               <Button
                 size="icon"
                 variant="ghost"
-                aria-label={`Remove ${nameOf(a.staff_id)}`}
+                aria-label={`Remove ${nameOf(a)}`}
                 onClick={() =>
-                  confirm(`Remove ${nameOf(a.staff_id)} from this event?`) && remove.mutate(a.id)
+                  confirm(`Remove ${nameOf(a)} from this event?`) && remove.mutate(a.id)
                 }
               >
                 <Trash2 className="h-4 w-4 text-destructive" />
@@ -155,7 +192,7 @@ export function EventTeam({ event }: { event: ClashEvent & { name: string } }) {
             <Button
               variant="destructive"
               disabled={add.isPending}
-              onClick={() => add.mutate({ staffId: pending.staffId, role })}
+              onClick={() => add.mutate({ memberId: pending.memberId, role })}
             >
               Assign anyway
             </Button>
@@ -173,16 +210,16 @@ export function EventTeam({ event }: { event: ClashEvent & { name: string } }) {
           }}
         >
           <select
-            aria-label="Team member"
+            aria-label="Staff member"
             required
-            value={staffId}
-            onChange={(e) => setStaffId(e.target.value)}
+            value={memberId}
+            onChange={(e) => setMemberId(e.target.value)}
             className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
           >
-            <option value="">Choose a team member…</option>
+            <option value="">Choose a staff member…</option>
             {available.map((m) => (
               <option key={m.id} value={m.id}>
-                {m.name} ({m.role})
+                {m.name} ({m.job_title})
               </option>
             ))}
           </select>
@@ -201,15 +238,19 @@ export function EventTeam({ event }: { event: ClashEvent & { name: string } }) {
               ))}
             </datalist>
           </div>
-          <Button type="submit" disabled={add.isPending || sameDay.isLoading || !staffId}>
+          <Button type="submit" disabled={add.isPending || sameDay.isLoading || !memberId}>
             <Plus className="h-4 w-4" />
             Assign
           </Button>
         </form>
       )}
-      {team.error && <p className="text-xs text-destructive">{(team.error as Error).message}</p>}
+      {staff.error && <p className="text-xs text-destructive">{(staff.error as Error).message}</p>}
       <p className="text-xs text-muted-foreground">
-        Team members are the people with a login in Users. Disabled accounts are not listed.
+        Staff members are managed on the{" "}
+        <Link to="/staff" className="underline">
+          Staff
+        </Link>{" "}
+        page. Inactive staff are not listed.
       </p>
     </section>
   );

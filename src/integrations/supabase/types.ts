@@ -167,6 +167,8 @@ export type Database = {
           vendor_id: string | null
           deleted_at: string | null
           deleted_by: string | null
+          source_table: string | null
+          source_id: string | null
         }
         Insert: {
           amount?: number
@@ -180,6 +182,8 @@ export type Database = {
           vendor_id?: string | null
           deleted_at?: string | null
           deleted_by?: string | null
+          source_table?: string | null
+          source_id?: string | null
         }
         Update: {
           amount?: number
@@ -193,6 +197,8 @@ export type Database = {
           vendor_id?: string | null
           deleted_at?: string | null
           deleted_by?: string | null
+          source_table?: string | null
+          source_id?: string | null
         }
         Relationships: [
           {
@@ -289,17 +295,26 @@ export type Database = {
           event_id: string
           id: string
           role: string
-          staff_id: string
+          staff_id: string | null
+          staff_member_id: string | null
         }
         Insert: {
           event_id: string
           role?: string
-          staff_id: string
+          staff_id?: string | null
+          staff_member_id?: string | null
         }
         Update: {
           role?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "event_staff_staff_member_id_fkey"
+            columns: ["staff_member_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "event_staff_event_id_fkey"
             columns: ["event_id"]
@@ -531,6 +546,152 @@ export type Database = {
         }
         Relationships: []
       }
+      staff: {
+        Row: {
+          active: boolean
+          cnic: string | null
+          created_at: string
+          created_by: string | null
+          deleted_at: string | null
+          deleted_by: string | null
+          id: string
+          job_title: string
+          joining_date: string | null
+          name: string
+          notes: string | null
+          phone: string | null
+          rate: number
+          salary_type: string
+        }
+        Insert: {
+          active?: boolean
+          cnic?: string | null
+          job_title?: string
+          joining_date?: string | null
+          name: string
+          notes?: string | null
+          phone?: string | null
+          rate?: number
+          salary_type?: string
+        }
+        Update: {
+          active?: boolean
+          cnic?: string | null
+          job_title?: string
+          joining_date?: string | null
+          name?: string
+          notes?: string | null
+          phone?: string | null
+          rate?: number
+          salary_type?: string
+        }
+        Relationships: []
+      }
+      attendance: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          event_id: string | null
+          id: string
+          note: string | null
+          staff_id: string
+          status: string
+          updated_at: string
+          work_date: string
+        }
+        Insert: {
+          event_id?: string | null
+          note?: string | null
+          staff_id: string
+          status: string
+          work_date: string
+        }
+        Update: {
+          event_id?: string | null
+          note?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attendance_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      staff_advances: {
+        Row: {
+          amount: number
+          created_at: string
+          created_by: string | null
+          deleted_at: string | null
+          deleted_by: string | null
+          given_on: string
+          id: string
+          note: string | null
+          staff_id: string
+        }
+        Insert: {
+          amount: number
+          given_on?: string
+          note?: string | null
+          staff_id: string
+        }
+        Update: {
+          note?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staff_advances_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      salary_payments: {
+        Row: {
+          advance_deducted: number
+          amount: number
+          bonus: number
+          calc: Json
+          created_at: string
+          created_by: string | null
+          expense_id: string | null
+          gross: number
+          id: string
+          method: string
+          note: string | null
+          paid_on: string
+          period_month: string
+          reference_no: string | null
+          staff_id: string
+          void_by: string | null
+          void_reason: string | null
+          voided_at: string | null
+        }
+        Insert: Record<string, never>
+        Update: Record<string, never>
+        Relationships: [
+          {
+            foreignKeyName: "salary_payments_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vendor_payments: {
         Row: {
           amount: number
@@ -636,6 +797,21 @@ export type Database = {
         Returns: { invoiced: number; received: number; expenses: number }[]
       }
       general_expenses_total: { Args: { _from: string; _to: string }; Returns: number }
+      staff_salary_calc: { Args: { _staff_id: string; _month: string; _bonus?: number }; Returns: Json }
+      record_salary_payment: {
+        Args: {
+          _staff_id: string
+          _month: string
+          _bonus: number
+          _expected_net: number
+          _method: string
+          _reference_no: string | null
+          _paid_on: string
+          _note: string | null
+        }
+        Returns: string
+      }
+      void_salary_payment: { Args: { _id: string; _reason: string }; Returns: undefined }
       soft_delete: { Args: { _id: string; _table: string }; Returns: undefined }
       void_invoice: { Args: { _id: string }; Returns: undefined }
       void_payment: { Args: { _id: string; _reason: string }; Returns: undefined }

@@ -153,3 +153,48 @@ Migration: `supabase/migrations/20261024000000_events_calendar.sql` (after the e
 1. Calendar loads in all three views; there is no "New event" button, clicking a day only selects it.
 2. Click an event → its page shows times, invoiced and received, and any venue-clash warning, but no Team section, expenses or profit.
 3. At 375px the month grid shows coloured dots, the week view stacks day by day, the list view scrolls normally.
+
+---
+
+# Staff, attendance and payroll (branch `staff-module`)
+
+Migration: `supabase/migrations/20261025000000_staff_payroll.sql` (after the events calendar migration).
+
+## What it adds
+- `staff` (people without a login), `attendance` (one mark per person per day), `staff_advances`, `salary_payments`. Phones are cleaned to 92xxxxxxxxxx and CNICs to 12345-1234567-1 by the database too.
+- `event_staff` can now point at a staff member (`staff_member_id`) or, as before, a login user (`staff_id`); exactly one of the two. Existing rows are untouched. `event_staff.staff_id` only lost its NOT NULL. Nothing was dropped.
+- New assignments on the event page use staff members. Clash detection treats a staff member and a login user as different people, so a person who is both could be double-booked unnoticed.
+
+## Salary rules (also shown on each staff page)
+- Present = 1 day, half day = 0.5, absent and leave = 0 (all leave is unpaid).
+- Daily wage: days worked × daily rate.
+- Monthly: salary − (absent + leave + 0.5 × half days + days before joining) × salary ÷ 30, never below 0. Days with no mark are not deducted; if nothing is marked a monthly person is shown the full salary with a warning.
+- Advances given up to the end of the month, minus what earlier payouts already recovered, are recovered from the pay (at most the pay); the rest carries forward. Net = earned + bonus − recovered.
+
+## Money flow, no double counting
+- An advance books one `Salary` expense for its amount on the day it is given. A payout books one `Salary` expense for its net cash amount. Together they equal earned + bonus. The dashboard and reports read expenses only, so each rupee is counted once. A payout with net 0 books nothing.
+- These generated expenses cannot be edited or deleted on the Expenses page. Void the payout, or have an admin delete the advance, and the expense is removed with it.
+- Salary expenses have no event, so they show under "General expenses" in the event profitability report.
+
+## Permissions
+- Admin: everything. Accountant: sees staff, rates and salaries; marks and corrects attendance; adds advances; records salary payments; cannot add or edit staff, delete anything, edit or void payments, or delete an attendance mark.
+- Salary payments are created only by `record_salary_payment()`, which recalculates everything in the database and refuses if the figures differ from what the user reviewed.
+- Voiding (admin only, with a reason) is audited. A payout can be paid again after a void.
+
+## Rollout
+Staging first, with a backup. No existing data is changed.
+
+## Manual tests — Admin
+1. Staff → Add staff: a daily-wage driver (0300-1234567, CNIC 3520212345671) and a monthly supervisor. Phone and CNIC show cleaned hints; a wrong CNIC or negative rate is refused.
+2. Attendance (sidebar): pick a day, tap Present / Half day / Absent / Leave for each person; tapping again changes it. "Mark everyone unmarked as present" works. A future date is refused.
+3. Staff page → pick the person: tap days in the month grid to correct marks (Clear removes one).
+4. Advances: record 5,000. Check Expenses: a `Salary` row "Salary advance - name". Try editing it: refused.
+5. Salary section: bonus 500 → figures change; "Record payment" asks for confirmation. Check Expenses for the new `Salary` row (net amount only) and the dashboard's expenses.
+6. Download the salary slip from the payments table, and a draft slip before paying.
+7. Void the payment with a reason: the Salary expense disappears, the advance is owed again, the month can be paid again.
+8. Events → an event → Team: assign a staff member; assign the same person to an overlapping event to see the clash warning.
+
+## Manual tests — Accountant
+1. Staff and Attendance are in the sidebar. The staff list shows pay rates. There is no Add / Edit / Delete.
+2. Mark and correct attendance; add an advance; record a salary payment. There is no Void button and no Delete (advances, attendance marks, payments).
+3. The Events page and event Team section stay admin-only.

@@ -22,6 +22,7 @@ import {
 } from "@/lib/calendar";
 import { karachiDate } from "@/lib/date-range";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useStaffMembers } from "@/hooks/use-staff-members";
 import { useTeamMembers } from "@/hooks/use-team-members";
 import { NewEventDialog } from "@/components/NewEventDialog";
 import { Button } from "@/components/ui/button";
@@ -47,7 +48,7 @@ type CalEvent = {
   hotel_id: string | null;
   client_name: string;
   hotels: { name: string } | null;
-  event_staff: { staff_id: string; role: string }[] | null;
+  event_staff: { staff_id: string | null; staff_member_id: string | null; role: string }[] | null;
 };
 
 const VIEWS: { id: CalendarView; label: string }[] = [
@@ -111,7 +112,7 @@ function CalendarPage() {
       const { data, error } = await supabase
         .from("events")
         .select(
-          "id, name, event_date, start_time, end_time, status, hotel_id, client_name, hotels(name), event_staff(staff_id, role)",
+          "id, name, event_date, start_time, end_time, status, hotel_id, client_name, hotels(name), event_staff(staff_id, staff_member_id, role)",
         )
         .gte("event_date", range.from)
         .lte("event_date", range.to)
@@ -123,9 +124,16 @@ function CalendarPage() {
   });
   const team = useTeamMembers(isAdmin);
   const byDay = groupByDay(data ?? []);
+  const staffList = useStaffMembers();
+  // Staff members are visible to the whole team; names of login users assigned earlier only to admins.
   const staffNames = (e: CalEvent) =>
     (e.event_staff ?? [])
-      .map((s) => team.data?.find((m) => m.id === s.staff_id)?.name ?? "—")
+      .map((x) =>
+        x.staff_member_id
+          ? staffList.data?.find((m) => m.id === x.staff_member_id)?.name
+          : team.data?.find((m) => m.id === x.staff_id)?.name,
+      )
+      .filter(Boolean)
       .join(", ");
 
   function move(dir: -1 | 1) {
@@ -344,7 +352,7 @@ function CalendarPage() {
               </header>
               <ul className="divide-y">
                 {list.map((e) => (
-                  <EventRow key={e.id} e={e} staff={isAdmin ? staffNames(e) : ""} />
+                  <EventRow key={e.id} e={e} staff={staffNames(e)} />
                 ))}
               </ul>
             </section>
@@ -372,7 +380,7 @@ function CalendarPage() {
           ) : (
             <ul className="divide-y">
               {dayEvents.map((e) => (
-                <EventRow key={e.id} e={e} staff={isAdmin ? staffNames(e) : ""} />
+                <EventRow key={e.id} e={e} staff={staffNames(e)} />
               ))}
             </ul>
           )}

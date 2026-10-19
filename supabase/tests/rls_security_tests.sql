@@ -58,6 +58,24 @@ update public.profiles set disabled_at = now() where id = '00000000-0000-0000-00
 insert into public.event_staff (id, event_id, staff_id, role)
   values ('00000000-0000-0000-0000-0000000005f1', '00000000-0000-0000-0000-00000000e002', '00000000-0000-0000-0000-0000000000b2', 'Lead decorator');
 
+-- Staff / payroll fixtures (owner level). March 2026 is a fixed past month.
+--   Monthly Mo   30000/month: 20 present, 2 absent, 1 leave, 2 half days -> deduction (2+1+1) days = 4000 -> earned 26000
+--   Daily Dan    1500/day:    10 present, 4 half days -> 12 days = 18000
+--   New Joiner   31000/month: joined 21 March, no marks -> 20 days before joining -> earned 10333.33
+insert into public.staff (id, name, job_title, salary_type, rate, joining_date, active) values
+  ('00000000-0000-0000-0000-0000000005a1', 'Monthly Mo', 'Supervisor', 'monthly', 30000, '2025-01-01', true),
+  ('00000000-0000-0000-0000-0000000005a2', 'Daily Dan', 'Labor', 'daily_wage', 1500, '2025-01-01', true),
+  ('00000000-0000-0000-0000-0000000005a3', 'New Joiner', 'Decorator', 'monthly', 31000, '2026-03-21', true),
+  ('00000000-0000-0000-0000-0000000005a4', 'Left Lee', 'Driver', 'daily_wage', 1200, '2025-01-01', false);
+insert into public.attendance (staff_id, work_date, status)
+select '00000000-0000-0000-0000-0000000005a1', d::date, case when extract(day from d) <= 20 then 'present' when extract(day from d) <= 22 then 'absent'
+                           when extract(day from d) = 23 then 'leave' else 'half_day' end
+  from generate_series('2026-03-01'::date, '2026-03-25'::date, interval '1 day') d;
+insert into public.attendance (staff_id, work_date, status)
+select '00000000-0000-0000-0000-0000000005a2', d::date, case when extract(day from d) <= 10 then 'present' else 'half_day' end
+  from generate_series('2026-03-01'::date, '2026-03-14'::date, interval '1 day') d;
+insert into public.staff_advances (staff_id, amount, given_on) values ('00000000-0000-0000-0000-0000000005a1', 5000, '2026-03-05'), ('00000000-0000-0000-0000-0000000005a2', 25000, '2026-03-10');
+
 -- ===========================================================================
 -- ACCOUNTANT
 -- ===========================================================================
@@ -297,6 +315,145 @@ do $$ declare n int; r text; begin
   exception when insufficient_privilege then raise notice 'PASS: accountant cannot create events (calendar create is admin only)'; end;
 end $$;
 
+-- 9. staff, attendance, advances and salary: accountants work with them but cannot delete or void
+do $$ declare r numeric; n int; st text; begin
+  select rate into r from public.staff where id = '00000000-0000-0000-0000-0000000005a1';
+  if r <> 30000 then raise exception 'FAIL: accountant cannot see staff rates (got %)', r; end if;
+  raise notice 'PASS: accountant can see staff and their rates';
+  begin insert into public.staff (name, job_title, salary_type, rate) values ('Intruder', 'Helper', 'monthly', 1);
+    raise exception 'FAIL: accountant created a staff member';
+  exception when insufficient_privilege then raise notice 'PASS: accountant cannot add staff members'; end;
+  update public.staff set rate = 99999 where id = '00000000-0000-0000-0000-0000000005a1';
+  select rate into r from public.staff where id = '00000000-0000-0000-0000-0000000005a1';
+  if r <> 30000 then raise exception 'FAIL: accountant changed a staff rate'; end if;
+  raise notice 'PASS: accountant cannot change a staff rate';
+  begin delete from public.staff where id = '00000000-0000-0000-0000-0000000005a1';
+    raise exception 'FAIL: accountant deleted a staff member';
+  exception when insufficient_privilege then raise notice 'PASS: accountant cannot DELETE staff'; end;
+  begin perform public.soft_delete('staff', '00000000-0000-0000-0000-0000000005a1');
+    raise exception 'FAIL: accountant soft-deleted a staff member';
+  exception when insufficient_privilege then raise notice 'PASS: accountant cannot soft_delete() staff'; end;
+
+  -- attendance
+  insert into public.attendance (staff_id, work_date, status) values ('00000000-0000-0000-0000-0000000005a3', current_date - 1, 'present');
+  begin insert into public.attendance (staff_id, work_date, status) values ('00000000-0000-0000-0000-0000000005a3', current_date - 1, 'absent');
+    raise exception 'FAIL: second mark for the same person and day accepted';
+  exception when unique_violation then raise notice 'PASS: only one attendance mark per person per day'; end;
+  update public.attendance set status = 'half_day' where staff_id = '00000000-0000-0000-0000-0000000005a3' and work_date = current_date - 1;
+  select status into st from public.attendance where staff_id = '00000000-0000-0000-0000-0000000005a3' and work_date = current_date - 1;
+  if st <> 'half_day' then raise exception 'FAIL: could not correct a mark'; end if;
+  raise notice 'PASS: accountant marked and corrected attendance';
+  begin insert into public.attendance (staff_id, work_date, status) values ('00000000-0000-0000-0000-0000000005a3', current_date + 2, 'present');
+    raise exception 'FAIL: future attendance accepted';
+  exception when check_violation then raise notice 'PASS: attendance cannot be marked in the future'; end;
+  begin insert into public.attendance (staff_id, work_date, status) values ('00000000-0000-0000-0000-0000000005a3', current_date - 2, 'maybe');
+    raise exception 'FAIL: unknown attendance status accepted';
+  exception when check_violation then raise notice 'PASS: unknown attendance status rejected'; end;
+  begin insert into public.attendance (staff_id, work_date, status, event_id)
+    values ('00000000-0000-0000-0000-0000000005a3', current_date - 3, 'present', '00000000-0000-0000-0000-00000000e005');
+    raise exception 'FAIL: attendance linked to a deleted event';
+  exception when check_violation then raise notice 'PASS: attendance cannot be linked to a deleted event'; end;
+  delete from public.attendance where staff_id = '00000000-0000-0000-0000-0000000005a3' and work_date = current_date - 1;
+  select count(*) into n from public.attendance where staff_id = '00000000-0000-0000-0000-0000000005a3' and work_date = current_date - 1;
+  if n <> 1 then raise exception 'FAIL: accountant deleted an attendance mark'; end if;
+  raise notice 'PASS: accountant cannot delete an attendance mark (zero rows deleted)';
+  begin update public.attendance set work_date = current_date - 5 where staff_id = '00000000-0000-0000-0000-0000000005a3' and work_date = current_date - 1;
+    raise exception 'FAIL: attendance moved to another day';
+  exception when insufficient_privilege then raise notice 'PASS: an attendance mark cannot be moved to another day'; end;
+
+  -- advances
+  insert into public.staff_advances (staff_id, amount, given_on, note) values ('00000000-0000-0000-0000-0000000005a3', 1000, current_date, 'Eid');
+  select count(*) into n from public.expenses where source_table = 'staff_advances' and amount = 1000 and category = 'Salary';
+  if n <> 1 then raise exception 'FAIL: advance did not create a Salary expense (%)', n; end if;
+  raise notice 'PASS: an advance is booked once, as a Salary expense';
+  begin update public.staff_advances set amount = 1 where staff_id = '00000000-0000-0000-0000-0000000005a3';
+    raise exception 'FAIL: advance amount edited';
+  exception when insufficient_privilege then raise notice 'PASS: an advance amount cannot be edited'; end;
+  update public.staff_advances set note = 'Eid ul Adha' where staff_id = '00000000-0000-0000-0000-0000000005a3';
+  begin delete from public.staff_advances where staff_id = '00000000-0000-0000-0000-0000000005a3';
+    raise exception 'FAIL: accountant deleted an advance';
+  exception when insufficient_privilege then raise notice 'PASS: accountant cannot delete advances'; end;
+  begin perform public.soft_delete('staff_advances', (select id from public.staff_advances where staff_id = '00000000-0000-0000-0000-0000000005a3'));
+    raise exception 'FAIL: accountant soft-deleted an advance';
+  exception when insufficient_privilege then raise notice 'PASS: accountant cannot soft_delete() advances'; end;
+  begin insert into public.staff_advances (staff_id, amount) values ('00000000-0000-0000-0000-0000000005a3', 0);
+    raise exception 'FAIL: zero advance accepted';
+  exception when check_violation then raise notice 'PASS: advances must be above zero'; end;
+  begin insert into public.staff_advances (staff_id, amount, given_on) values ('00000000-0000-0000-0000-0000000005a3', 10, current_date + 3);
+    raise exception 'FAIL: future advance accepted';
+  exception when check_violation then raise notice 'PASS: advances cannot be dated in the future'; end;
+end $$;
+
+-- salary figures (the same cases are unit-tested in src/test/salary.test.ts)
+do $$ declare c jsonb; begin
+  c := public.staff_salary_calc('00000000-0000-0000-0000-0000000005a1', '2026-03-01', 0);
+  if (c->>'gross')::numeric <> 26000 or (c->>'advance_deducted')::numeric <> 5000 or (c->>'net')::numeric <> 21000 then
+    raise exception 'FAIL: monthly staff calc %', c; end if;
+  c := public.staff_salary_calc('00000000-0000-0000-0000-0000000005a1', '2026-03-17', 500);
+  if (c->>'net')::numeric <> 21500 then raise exception 'FAIL: monthly staff with bonus %', c; end if;
+  c := public.staff_salary_calc('00000000-0000-0000-0000-0000000005a2', '2026-03-01', 0);
+  if (c->>'gross')::numeric <> 18000 or (c->>'days_worked')::numeric <> 12 or (c->>'advance_deducted')::numeric <> 18000
+     or (c->>'net')::numeric <> 0 or (c->>'advance_carried_forward')::numeric <> 7000 then
+    raise exception 'FAIL: daily wage staff with advance above salary %', c; end if;
+  c := public.staff_salary_calc('00000000-0000-0000-0000-0000000005a3', '2026-03-01', 0);
+  if (c->>'gross')::numeric <> 10333.33 then raise exception 'FAIL: mid-month joiner %', c; end if;
+  c := public.staff_salary_calc('00000000-0000-0000-0000-0000000005a3', '2026-02-01', 0);
+  if (c->>'gross')::numeric <> 0 then raise exception 'FAIL: staff earned before joining %', c; end if;
+  c := public.staff_salary_calc('00000000-0000-0000-0000-0000000005a2', '2026-01-01', 0);
+  if (c->>'gross')::numeric <> 0 or (c->>'days_worked')::numeric <> 0 then raise exception 'FAIL: daily wage, no attendance %', c; end if;
+  c := public.staff_salary_calc('00000000-0000-0000-0000-0000000005a1', '2026-01-01', 0);
+  if (c->>'gross')::numeric <> 30000 then raise exception 'FAIL: monthly staff with no marks should get the full rate %', c; end if;
+  raise notice 'PASS: salary calculation (monthly, daily wage, half days, bonus, advances above salary, no attendance, joiners)';
+  begin perform public.staff_salary_calc('00000000-0000-0000-0000-0000000005a1', '2026-03-01', -5);
+    raise exception 'FAIL: negative bonus accepted';
+  exception when check_violation then raise notice 'PASS: a negative bonus is rejected'; end;
+end $$;
+
+-- payouts: accountant records them, nobody edits them, only an admin voids them
+do $$ declare pid uuid; n int; a numeric; e record; begin
+  begin perform public.record_salary_payment('00000000-0000-0000-0000-0000000005a1', '2026-03-01', 500, 99999, 'cash', null, current_date, null);
+    raise exception 'FAIL: payout accepted with figures the user did not review';
+  exception when raise_exception then raise notice 'PASS: a payout is refused when the reviewed figures no longer match'; end;
+  begin perform public.record_salary_payment('00000000-0000-0000-0000-0000000005a1', date_trunc('month', current_date + 70)::date, 0, 0, 'cash', null, current_date, null);
+    raise exception 'FAIL: future month paid';
+  exception when check_violation then raise notice 'PASS: a future month cannot be paid'; end;
+  begin insert into public.salary_payments (staff_id, period_month, gross, bonus, advance_deducted, amount, method, calc)
+    values ('00000000-0000-0000-0000-0000000005a1', '2026-03-01', 1, 0, 0, 1, 'cash', '{}');
+    raise exception 'FAIL: direct insert into salary_payments';
+  exception when insufficient_privilege then raise notice 'PASS: salary payments cannot be inserted directly'; end;
+
+  pid := public.record_salary_payment('00000000-0000-0000-0000-0000000005a1', '2026-03-01', 500, 21500, 'bank', 'TRX-1', current_date, 'March');
+  select amount into a from public.salary_payments where id = pid;
+  if a <> 21500 then raise exception 'FAIL: stored amount %', a; end if;
+  select * into e from public.expenses where source_table = 'salary_payments' and source_id = pid;
+  if e.category <> 'Salary' or e.amount <> 21500 or e.deleted_at is not null then raise exception 'FAIL: salary expense wrong: %', e; end if;
+  raise notice 'PASS: accountant recorded a salary payout; one Salary expense of the net amount was booked';
+
+  begin perform public.record_salary_payment('00000000-0000-0000-0000-0000000005a1', '2026-03-01', 0, 21000, 'cash', null, current_date, null);
+    raise exception 'FAIL: month paid twice';
+  exception when unique_violation then raise notice 'PASS: a month cannot be paid twice'; end;
+
+  pid := public.record_salary_payment('00000000-0000-0000-0000-0000000005a2', '2026-03-01', 1000, 0, 'cash', null, current_date, null);
+  select count(*) into n from public.expenses where source_id = pid;
+  if n <> 0 then raise exception 'FAIL: a zero net payout must not book an expense'; end if;
+  select advance_deducted into a from public.salary_payments where id = pid;
+  if a <> 19000 then raise exception 'FAIL: advance recovered % (expected 19000)', a; end if;
+  raise notice 'PASS: advances above the salary are recovered only up to the pay; net is 0 and nothing is double counted';
+
+  begin update public.expenses set amount = 1 where source_table = 'salary_payments' and amount = 21500;
+    raise exception 'FAIL: accountant edited a generated Salary expense';
+  exception when insufficient_privilege then raise notice 'PASS: a generated Salary expense cannot be edited'; end;
+  begin update public.salary_payments set amount = 1 where id = pid;
+    raise exception 'FAIL: salary payment edited';
+  exception when insufficient_privilege then raise notice 'PASS: accountant cannot UPDATE salary payments'; end;
+  begin delete from public.salary_payments where id = pid;
+    raise exception 'FAIL: salary payment deleted';
+  exception when insufficient_privilege then raise notice 'PASS: accountant cannot DELETE salary payments'; end;
+  begin perform public.void_salary_payment(pid, 'trying to hide a payment');
+    raise exception 'FAIL: accountant voided a salary payment';
+  exception when insufficient_privilege then raise notice 'PASS: accountant cannot void salary payments'; end;
+end $$;
+
 -- ===========================================================================
 -- USER WITH NO ROLE (e.g. someone who found the sign-up page)
 -- ===========================================================================
@@ -310,6 +467,10 @@ do $$ declare n int; begin
   if n <> 0 then raise exception 'FAIL: role-less user can read clients'; end if;
   select count(*) into n from public.event_staff;
   if n <> 0 then raise exception 'FAIL: role-less user can read event_staff'; end if;
+  select count(*) into n from public.staff;
+  if n <> 0 then raise exception 'FAIL: role-less user can read staff'; end if;
+  select count(*) into n from public.salary_payments;
+  if n <> 0 then raise exception 'FAIL: role-less user can read salary payments'; end if;
   begin insert into public.expenses (category, amount) values ('Flowers', 100);
     raise exception 'FAIL: role-less user inserted an expense';
   exception when insufficient_privilege then null; end;
@@ -416,6 +577,103 @@ do $$ declare n int; r text; begin
   raise notice 'PASS: assignment changes are audited';
 end $$;
 
+-- ADMIN: staff records, assignments of staff members, voiding payouts
+do $$ declare n int; r record; a numeric; pid uuid; c jsonb; aid uuid; begin
+  insert into public.staff (name, job_title, phone, cnic, salary_type, rate)
+  values ('  Test Driver ', 'Driver', '0300-7654321', '3520212345671', 'daily_wage', 1000);
+  select * into r from public.staff where name = 'Test Driver';
+  if r.phone <> '923007654321' or r.cnic <> '35202-1234567-1' then raise exception 'FAIL: phone=% cnic=%', r.phone, r.cnic; end if;
+  raise notice 'PASS: admin added staff; name trimmed, phone and CNIC normalised';
+  begin insert into public.staff (name, job_title, cnic) values ('Dup', 'Helper', '35202-1234567-1');
+    raise exception 'FAIL: duplicate CNIC accepted';
+  exception when unique_violation then raise notice 'PASS: a CNIC can belong to only one staff member'; end;
+  begin insert into public.staff (name, job_title, cnic) values ('Bad', 'Helper', '12345');
+    raise exception 'FAIL: invalid CNIC accepted';
+  exception when check_violation then raise notice 'PASS: invalid CNIC rejected'; end;
+  begin insert into public.staff (name, job_title, phone) values ('Bad', 'Helper', '12345');
+    raise exception 'FAIL: invalid phone accepted';
+  exception when check_violation then raise notice 'PASS: invalid staff phone rejected'; end;
+  begin insert into public.staff (name, job_title, rate) values ('Bad', 'Helper', -1);
+    raise exception 'FAIL: negative rate accepted';
+  exception when check_violation then raise notice 'PASS: a negative rate is rejected'; end;
+  begin insert into public.staff (name, job_title, salary_type) values ('Bad', 'Helper', 'weekly');
+    raise exception 'FAIL: unknown salary type accepted';
+  exception when check_violation then raise notice 'PASS: salary type must be monthly or daily_wage'; end;
+  update public.staff set rate = 1200 where name = 'Test Driver';
+  perform public.soft_delete('staff', r.id);
+  select count(*) into n from public.staff where id = r.id;
+  if n <> 0 then raise exception 'FAIL: deleted staff member still visible'; end if;
+  raise notice 'PASS: admin edited and soft-deleted a staff member';
+
+  -- event assignments use staff members; login users already assigned keep working
+  insert into public.event_staff (event_id, staff_member_id, role) values ('00000000-0000-0000-0000-00000000e002', '00000000-0000-0000-0000-0000000005a1', 'Supervisor');
+  raise notice 'PASS: a staff member can be assigned to an event';
+  begin insert into public.event_staff (event_id, staff_member_id, role) values ('00000000-0000-0000-0000-00000000e002', '00000000-0000-0000-0000-0000000005a1', 'Again');
+    raise exception 'FAIL: same staff member assigned twice';
+  exception when unique_violation then raise notice 'PASS: a staff member cannot be assigned to an event twice'; end;
+  begin insert into public.event_staff (event_id, staff_member_id, role) values ('00000000-0000-0000-0000-00000000e002', '00000000-0000-0000-0000-0000000005a4', 'Driver');
+    raise exception 'FAIL: inactive staff assigned';
+  exception when check_violation then raise notice 'PASS: an inactive staff member cannot be assigned'; end;
+  begin insert into public.event_staff (event_id, staff_id, staff_member_id, role)
+    values ('00000000-0000-0000-0000-00000000e002', '00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-0000000005a2', 'Both');
+    raise exception 'FAIL: assignment pointing at two people';
+  exception when check_violation then raise notice 'PASS: an assignment names exactly one person'; end;
+  begin insert into public.event_staff (event_id, role) values ('00000000-0000-0000-0000-00000000e002', 'Nobody');
+    raise exception 'FAIL: assignment pointing at nobody';
+  exception when check_violation then raise notice 'PASS: an assignment must name a person'; end;
+  select count(*) into n from public.event_staff where staff_id = '00000000-0000-0000-0000-0000000000b2';
+  if n < 1 then raise exception 'FAIL: the existing login-user assignment disappeared'; end if;
+  raise notice 'PASS: existing login-user assignments still work';
+
+  -- voiding a payout frees the advance, removes the expense and is audited
+  select id into pid from public.salary_payments where staff_id = '00000000-0000-0000-0000-0000000005a1' and voided_at is null;
+  begin perform public.void_salary_payment(pid, 'x');
+    raise exception 'FAIL: void without a proper reason';
+  exception when raise_exception then raise notice 'PASS: voiding a payout needs a reason'; end;
+  c := public.staff_salary_calc('00000000-0000-0000-0000-0000000005a1', '2026-03-01', 0);
+  if (c->>'outstanding_advance')::numeric <> 0 then raise exception 'FAIL: advance should be fully recovered before the void: %', c; end if;
+  perform public.void_salary_payment(pid, 'Wrong bonus entered');
+  c := public.staff_salary_calc('00000000-0000-0000-0000-0000000005a1', '2026-03-01', 0);
+  if (c->>'outstanding_advance')::numeric <> 5000 or (c->>'net')::numeric <> 21000 then raise exception 'FAIL: after the void %', c; end if;
+  select count(*) into n from public.expenses where source_id = pid;
+  if n <> 0 then raise exception 'FAIL: the voided payout still counts as an expense'; end if;
+  select count(*) into n from public.audit_logs where action = 'VOID_SALARY_PAYMENT' and record_id = pid and details->>'reason' = 'Wrong bonus entered';
+  if n <> 1 then raise exception 'FAIL: salary void not audited'; end if;
+  raise notice 'PASS: voiding a payout restores the advance, removes its expense and is audited';
+  begin perform public.void_salary_payment(pid, 'second try');
+    raise exception 'FAIL: voided twice';
+  exception when raise_exception then raise notice 'PASS: a payout cannot be voided twice'; end;
+  begin update public.salary_payments set note = 'edited' where id = pid;
+    raise exception 'FAIL: admin edited a salary payment';
+  exception when insufficient_privilege then raise notice 'PASS: even admins cannot UPDATE salary payments'; end;
+  pid := public.record_salary_payment('00000000-0000-0000-0000-0000000005a1', '2026-03-01', 0, 21000, 'cash', null, current_date, 'Re-paid');
+  raise notice 'PASS: the month can be paid again after a void';
+
+  -- advances: one already recovered cannot be deleted, an unused one can
+  select id into aid from public.staff_advances where staff_id = '00000000-0000-0000-0000-0000000005a2';
+  begin perform public.soft_delete('staff_advances', aid);
+    raise exception 'FAIL: deleted an advance that a payout already recovered';
+  exception when check_violation then raise notice 'PASS: an advance recovered by a payout cannot be deleted'; end;
+  select id into aid from public.staff_advances where staff_id = '00000000-0000-0000-0000-0000000005a3';
+  perform public.soft_delete('staff_advances', aid);
+  select count(*) into n from public.expenses where source_table = 'staff_advances' and source_id = aid and deleted_at is null;
+  if n <> 0 then raise exception 'FAIL: deleting an advance left its expense behind'; end if;
+  raise notice 'PASS: deleting an unused advance also removes its Salary expense';
+  begin perform public.soft_delete('expenses', (select id from public.expenses where source_table = 'salary_payments' and deleted_at is null limit 1));
+    raise exception 'FAIL: generated expense deleted from the Expenses page';
+  exception when insufficient_privilege then raise notice 'PASS: a generated Salary expense cannot be deleted on its own'; end;
+
+  -- attendance delete is admin only
+  delete from public.attendance where staff_id = '00000000-0000-0000-0000-0000000005a3' and work_date = current_date - 1;
+  select count(*) into n from public.attendance where staff_id = '00000000-0000-0000-0000-0000000005a3' and work_date = current_date - 1;
+  if n <> 0 then raise exception 'FAIL: admin could not delete an attendance mark'; end if;
+  raise notice 'PASS: admin can delete an attendance mark';
+
+  select count(*) into n from public.audit_logs where table_name in ('staff', 'attendance', 'staff_advances', 'salary_payments');
+  if n < 5 then raise exception 'FAIL: staff changes are not audited'; end if;
+  raise notice 'PASS: staff, attendance, advances and payouts are audited';
+end $$;
+
 -- ADMIN: event profit report counts the right rows
 do $$ declare r record; n int; g numeric; a1 int; a2 int; begin
   select count(*) into a1 from public.audit_logs where action = 'VIEW_EVENT_PNL';
@@ -437,8 +695,9 @@ do $$ declare r record; n int; g numeric; a1 int; a2 int; begin
   raise notice 'PASS: events outside the range and deleted events are not listed';
 
   g := public.general_expenses_total(current_date - 1, current_date + 1);
-  -- 7000 from the fixture + 2500 added by the accountant test above; linked, deleted and out-of-range expenses must not count
-  if g <> 9500 then raise exception 'FAIL: general expenses=% (expected 9500)', g; end if;
+  -- 7000 fixture + 2500 accountant test + 21000 re-paid salary (a Salary expense belongs to no event);
+  -- linked, deleted (voided payout, deleted advance) and out-of-range expenses must not count
+  if g <> 30500 then raise exception 'FAIL: general expenses=% (expected 30500)', g; end if;
   raise notice 'PASS: general expenses = only unlinked expenses inside the range';
 
   select * into r from public.event_pnl_one('00000000-0000-0000-0000-00000000e002');
@@ -548,6 +807,14 @@ do $$ begin
   begin delete from public.payments;
     raise exception 'FAIL: owner deleted payments';
   exception when insufficient_privilege then raise notice 'PASS: payments immutable trigger blocks owner DELETE'; end;
+end $$;
+do $$ begin
+  begin update public.salary_payments set note = 'edited by owner';
+    raise exception 'FAIL: owner updated salary payments';
+  exception when insufficient_privilege then raise notice 'PASS: salary payments immutable trigger blocks owner UPDATE'; end;
+  begin delete from public.salary_payments;
+    raise exception 'FAIL: owner deleted salary payments';
+  exception when insufficient_privilege then raise notice 'PASS: salary payments immutable trigger blocks owner DELETE'; end;
 end $$;
 do $$ begin
   begin update public.user_roles set role = 'accountant' where role = 'admin';

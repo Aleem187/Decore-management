@@ -4,7 +4,7 @@ import type { Assignment, ClashEvent } from "@/lib/clashes";
 
 export type SameDayEvent = ClashEvent & {
   name: string;
-  event_staff: { staff_id: string }[] | null;
+  event_staff: { staff_id: string | null; staff_member_id: string | null }[] | null;
 };
 
 /** Every live event on one date (any status), with who is assigned, for clash checks. */
@@ -17,7 +17,7 @@ export function useSameDayEvents(date: string | null | undefined) {
       const { data, error } = await supabase
         .from("events")
         .select(
-          "id, name, event_date, start_time, end_time, status, hotel_id, deleted_at, event_staff(staff_id)",
+          "id, name, event_date, start_time, end_time, status, hotel_id, deleted_at, event_staff(staff_id, staff_member_id)",
         )
         .eq("event_date", date as string)
         .is("deleted_at", null);
@@ -27,7 +27,10 @@ export function useSameDayEvents(date: string | null | undefined) {
   });
   const events = query.data ?? [];
   const assignments: Assignment[] = events.flatMap((e) =>
-    (e.event_staff ?? []).map((s) => ({ event_id: e.id, staff_id: s.staff_id })),
+    (e.event_staff ?? []).flatMap((s) => {
+      const key = s.staff_member_id ?? s.staff_id;
+      return key ? [{ event_id: e.id, staff_id: key }] : [];
+    }),
   );
   return { ...query, events, assignments };
 }
