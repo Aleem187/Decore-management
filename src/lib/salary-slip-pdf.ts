@@ -1,4 +1,17 @@
 import { fmtDate, pkr } from "@/lib/format";
+import {
+  BAND_H,
+  BLACK,
+  CREAM,
+  GOLD_DARK,
+  GOLD_LIGHT,
+  GREEN,
+  INK,
+  MUTED,
+  brandFooters,
+  brandHeader,
+  loadLogo,
+} from "@/lib/pdf-brand";
 import { METHOD_LABEL, type PaymentMethod } from "@/lib/payments";
 import type { SalaryResult } from "@/lib/salary";
 import { maskCnic } from "@/lib/staff";
@@ -17,12 +30,6 @@ export type SlipPayment = {
   paid_on: string;
   voided_at: string | null;
 };
-
-type Color = [number, number, number];
-const GOLD: Color = [176, 137, 74];
-const INK: Color = [38, 34, 30];
-const MUTED: Color = [120, 113, 105];
-const GREEN: Color = [46, 125, 80];
 
 const monthName = (month: string) =>
   new Date(`${month.slice(0, 7)}-01T00:00:00Z`).toLocaleDateString("en-GB", {
@@ -55,54 +62,32 @@ export async function downloadSalarySlip(input: {
   const finalY = () =>
     (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY;
 
-  doc
-    .setFont("times", "bold")
-    .setFontSize(26)
-    .setTextColor(...INK)
-    .text("Décor Studio", M, 62);
-  doc
-    .setFont("helvetica", "normal")
-    .setFontSize(9)
-    .setTextColor(...MUTED)
-    .text("Weddings · Events · Luxury Décor", M, 78);
-  doc
-    .setFont("helvetica", "bold")
-    .setFontSize(18)
-    .setTextColor(...GOLD)
-    .text("SALARY SLIP", W - M, 62, { align: "right" });
-  doc
-    .setFont("helvetica", "normal")
-    .setFontSize(10)
-    .setTextColor(...MUTED)
-    .text(monthName(month), W - M, 80, { align: "right" });
-  doc
-    .setDrawColor(...GOLD)
-    .setLineWidth(1.2)
-    .line(M, 104, W - M, 104);
+  brandHeader(doc, await loadLogo(), "SALARY SLIP", [monthName(month)]);
+  const T = BAND_H + 24;
 
   const col2 = W / 2 + 10;
   doc
     .setFontSize(8)
-    .setTextColor(...MUTED)
+    .setTextColor(...GOLD_DARK)
     .setFont("helvetica", "bold");
-  doc.text("EMPLOYEE", M, 128).text("PAY BASIS", col2, 128);
+  doc.text("EMPLOYEE", M, T).text("PAY BASIS", col2, T);
   doc.setFontSize(11).setTextColor(...INK);
-  doc.text(staff.name, M, 145);
+  doc.text(staff.name, M, T + 17);
   doc.text(
     `${pkr(staff.rate)} / ${staff.salary_type === "daily_wage" ? "day" : "month"}`,
     col2,
-    145,
+    T + 17,
   );
   doc
     .setFont("helvetica", "normal")
     .setFontSize(9.5)
     .setTextColor(...MUTED);
-  doc.text(staff.job_title, M, 160);
-  doc.text(`CNIC: ${maskCnic(staff.cnic)}`, M, 174);
-  doc.text(`Joined: ${staff.joining_date ? fmtDate(staff.joining_date) : "—"}`, col2, 160);
+  doc.text(staff.job_title, M, T + 32);
+  doc.text(`CNIC: ${maskCnic(staff.cnic)}`, M, T + 46);
+  doc.text(`Joined: ${staff.joining_date ? fmtDate(staff.joining_date) : "—"}`, col2, T + 32);
 
   autoTable(doc, {
-    startY: 198,
+    startY: T + 70,
     margin: { left: M, right: M },
     head: [["Attendance", "Days"]],
     body: [
@@ -114,8 +99,8 @@ export async function downloadSalarySlip(input: {
     ],
     theme: "striped",
     styles: { font: "helvetica", fontSize: 10, cellPadding: 6, textColor: INK },
-    headStyles: { fillColor: INK, textColor: 255, fontStyle: "bold" },
-    alternateRowStyles: { fillColor: [247, 243, 237] },
+    headStyles: { fillColor: BLACK, textColor: GOLD_LIGHT, fontStyle: "bold" },
+    alternateRowStyles: { fillColor: CREAM },
     columnStyles: { 1: { halign: "right", cellWidth: 90 } },
   });
 
@@ -137,7 +122,7 @@ export async function downloadSalarySlip(input: {
     body: lines,
     theme: "plain",
     styles: { font: "helvetica", fontSize: 10.5, cellPadding: 7, textColor: INK },
-    headStyles: { textColor: MUTED, fontStyle: "bold" },
+    headStyles: { textColor: GOLD_DARK, fontStyle: "bold" },
     columnStyles: { 1: { halign: "right", fontStyle: "bold", cellWidth: 150 } },
     didParseCell: (d) => {
       if (d.row.index === lines.length - 1 && d.section === "body") {
@@ -172,11 +157,11 @@ export async function downloadSalarySlip(input: {
     doc
       .setFont("helvetica", "bold")
       .setFontSize(12)
-      .setTextColor(...GOLD)
+      .setTextColor(...GOLD_DARK)
       .text("DRAFT — NOT PAID YET", M, y + 6);
   }
 
-  const sy = Math.max(y + 70, H - 150);
+  const sy = Math.max(y + 70, H - 170);
   doc.setDrawColor(...MUTED).setLineWidth(0.6);
   doc.line(M, sy, M + 170, sy).line(W - M - 170, sy, W - M, sy);
   doc
@@ -185,20 +170,7 @@ export async function downloadSalarySlip(input: {
     .setTextColor(...MUTED);
   doc.text("Employee signature", M, sy + 13).text("Accounts", W - M - 170, sy + 13);
 
-  doc
-    .setDrawColor(...GOLD)
-    .setLineWidth(0.6)
-    .line(M, H - 70, W - M, H - 70);
-  doc
-    .setFont("times", "italic")
-    .setFontSize(12)
-    .setTextColor(...INK)
-    .text("Thank you for your work with Décor Studio!", W / 2, H - 48, { align: "center" });
-  doc
-    .setFont("helvetica", "normal")
-    .setFontSize(8)
-    .setTextColor(...MUTED)
-    .text("This is a computer-generated document.", W / 2, H - 33, { align: "center" });
+  brandFooters(doc, "Thank you for your work with Sarim Events Planner!");
 
   doc.save(`Salary-${staff.name.replace(/[^\w]+/g, "_")}-${month.slice(0, 7)}.pdf`);
 }

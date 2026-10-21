@@ -1,3 +1,4 @@
+import { BRAND_LOGO, BRAND_NAME, BRAND_TAGLINE } from "@/lib/brand";
 import { createFileRoute, Link, Outlet, redirect, useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -20,7 +21,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useState } from "react";
 import { useLocation } from "@tanstack/react-router";
-import { accountantMayVisit, displayName, setViewAs, useMe, type Role } from "@/lib/auth";
+import { accountantMayVisit, displayName, useMe } from "@/lib/auth";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
 
 export const Route = createFileRoute("/_authenticated")({
@@ -34,12 +35,12 @@ export const Route = createFileRoute("/_authenticated")({
 
 const nav = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/calendar", label: "Calendar", icon: CalendarDays },
+  { to: "/calendar", label: "Calendar", icon: CalendarDays, admin: true },
   { to: "/events", label: "Events", icon: CalendarHeart, admin: true },
   { to: "/hotels", label: "Hotels", icon: Hotel, admin: true },
   { to: "/clients", label: "Clients", icon: BookUser },
-  { to: "/staff", label: "Staff", icon: HardHat },
-  { to: "/attendance", label: "Attendance", icon: ClipboardCheck },
+  { to: "/staff", label: "Staff", icon: HardHat, admin: true },
+  { to: "/attendance", label: "Attendance", icon: ClipboardCheck, admin: true },
   { to: "/invoices", label: "Invoices", icon: Receipt },
   { to: "/expenses", label: "Expenses", icon: Wallet },
   { to: "/vendors", label: "Vendors", icon: Truck },
@@ -63,25 +64,13 @@ function SidebarBody({
   return (
     <>
       <div className="py-5 pl-6 pr-5">
-        <div className="font-display text-2xl font-semibold">Décor Studio</div>
+        <div className="flex items-center gap-3">
+          <img src={BRAND_LOGO} alt="" className="h-11 w-11 rounded-full" />
+          <div className="text-gradient-gold font-display text-xl font-semibold leading-tight">{BRAND_NAME}</div>
+        </div>
         <div className="text-xs uppercase tracking-widest text-sidebar-primary">
           {me?.role ?? "…"}
         </div>
-        {me?.realRole === "admin" && (
-          <label className="mt-3 block text-xs text-sidebar-foreground/70">
-            View as
-            <select
-              value={me.role ?? "admin"}
-              onChange={(e) =>
-                setViewAs(e.target.value === "admin" ? null : (e.target.value as Role))
-              }
-              className="mt-1 block w-full rounded-md border border-sidebar-border bg-sidebar-accent px-2 py-1.5 text-sm text-sidebar-foreground"
-            >
-              <option value="admin">Admin</option>
-              <option value="accountant">Accountant</option>
-            </select>
-          </label>
-        )}
       </div>
       <nav className="flex flex-col gap-1 px-4">
         {nav
@@ -149,7 +138,7 @@ function Shell() {
         >
           <Menu className="h-5 w-5" />
         </button>
-        <span className="font-display text-xl font-semibold">Décor Studio</span>
+        <span className="text-gradient-gold font-display text-xl font-semibold">{BRAND_NAME}</span>
         <span className="ml-auto text-xs uppercase tracking-widest text-sidebar-primary">
           {me?.role ?? "…"}
         </span>

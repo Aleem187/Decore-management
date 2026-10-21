@@ -23,8 +23,8 @@ import {
 } from "@/components/ui/table";
 
 export const Route = createFileRoute("/_authenticated/events/$eventId")({
-  head: () => ({ meta: [{ title: "Event — Décor Studio" }] }),
-  beforeLoad: ({ context }) => requireRole(context.queryClient, ["admin", "accountant"]),
+  head: () => ({ meta: [{ title: "Event — Sarim Events Planner" }] }),
+  beforeLoad: ({ context }) => requireRole(context.queryClient, ["admin"]),
   component: EventDetail,
 });
 

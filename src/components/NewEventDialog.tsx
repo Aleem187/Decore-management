@@ -7,20 +7,13 @@ import { findVenueClashes } from "@/lib/clashes";
 import { useSameDayEvents } from "@/hooks/use-same-day-events";
 import { ClashList } from "@/components/ClashList";
 import { useOptions } from "@/components/CrudPage";
+import { EVENT_TYPES } from "@/lib/brand";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-const TYPES = [
-  "Wedding",
-  "Mehndi",
-  "Corporate",
-  "Birthday",
-  "Stage Decor",
-  "Mandap / Stage",
-  "Other",
-];
+const TYPES = EVENT_TYPES;
 const STATUSES = ["upcoming", "in_progress", "completed", "paid", "cancelled"] as const;
 type Status = (typeof STATUSES)[number];
 

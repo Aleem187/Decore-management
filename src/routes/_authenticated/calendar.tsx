@@ -30,11 +30,11 @@ import { Button } from "@/components/ui/button";
 export const Route = createFileRoute("/_authenticated/calendar")({
   head: () => ({
     meta: [
-      { title: "Calendar — Décor Studio" },
+      { title: "Calendar — Sarim Events Planner" },
       { name: "description", content: "Events by month, week or list." },
     ],
   }),
-  beforeLoad: ({ context }) => requireRole(context.queryClient, ["admin", "accountant"]),
+  beforeLoad: ({ context }) => requireRole(context.queryClient, ["admin"]),
   component: CalendarPage,
 });
 

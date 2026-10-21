@@ -18,6 +18,7 @@ import { summarize } from "@/lib/dashboard-stats";
 import { karachiDate } from "@/lib/date-range";
 import { compactNumber, fmtDate, pkr } from "@/lib/format";
 import { vendorTotals } from "@/lib/vendor-ledger";
+import { Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { StatusPill } from "@/components/CrudPage";
 import { RangeFilter } from "@/components/RangeFilter";
@@ -26,9 +27,9 @@ import { useDateRange } from "@/hooks/use-date-range";
 export const Route = createFileRoute("/_authenticated/dashboard")({
   head: () => ({
     meta: [
-      { title: "Dashboard — Décor Studio" },
+      { title: "Dashboard — Sarim Events Planner" },
       { name: "description", content: "Revenue, expenses and event overview." },
-      { property: "og:title", content: "Dashboard — Décor Studio" },
+      { property: "og:title", content: "Dashboard — Sarim Events Planner" },
       { property: "og:description", content: "Revenue, expenses and event overview." },
     ],
   }),
@@ -90,7 +91,7 @@ function Stat({
   );
 }
 
-function Dashboard() {
+function AdminDashboard() {
   const { data: me } = useMe();
   const { data } = useData();
   const dateRange = useDateRange();
@@ -320,6 +321,124 @@ function Dashboard() {
           </ul>
         </div>
       )}
+    </div>
+  );
+}
+
+function Dashboard() {
+  const { data: me } = useMe();
+  if (!me) return <p className="text-muted-foreground">Loading…</p>;
+  // The role comes from the database (user_roles); the admin dashboard queries never run for anyone else.
+  return me.role === "admin" ? <AdminDashboard /> : <AccountantDashboard name={displayName(me)} />;
+}
+
+/** Accountant view: invoices and expense entries only. No profit, cash flow, owner or staff figures. */
+function AccountantDashboard({ name }: { name: string }) {
+  const today = karachiDate();
+  const { data } = useQuery({
+    queryKey: ["dashboard", "accountant"],
+    queryFn: async () => {
+      const [inv, exp] = await Promise.all([
+        supabase
+          .from("invoices")
+          .select("id, invoice_no, client_name, kind, amount, amount_paid, due_date, created_at")
+          .is("deleted_at", null)
+          .is("voided_at", null)
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("expenses")
+          .select("id, category, description, amount, expense_date, paid")
+          .is("deleted_at", null)
+          .order("expense_date", { ascending: false })
+          .order("created_at", { ascending: false })
+          .limit(15),
+      ]);
+      if (inv.error) throw inv.error;
+      if (exp.error) throw exp.error;
+      return { invoices: inv.data ?? [], expenses: exp.data ?? [] };
+    },
+  });
+  if (!data) return <p className="text-muted-foreground">Loading…</p>;
+
+  const balance = (i: { amount: number | string; amount_paid: number | string }) =>
+    Math.max(0, Number(i.amount) - Number(i.amount_paid));
+  const unpaid = data.invoices.filter((i) => balance(i) > 0);
+  const overdue = unpaid.filter((i) => i.due_date && i.due_date < today);
+  const sum = (rows: { amount: number | string }[]) => rows.reduce((t, r) => t + Number(r.amount), 0);
+  const todaysExpenses = data.expenses.filter((e) => e.expense_date === today);
+
+  return (
+    <div className="space-y-8">
+      <div className="min-w-0">
+        <p className="text-sm uppercase tracking-[0.25em] text-gold">Accounts desk</p>
+        <h1 className="break-words text-3xl font-semibold sm:text-4xl">Hello, {name}</h1>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <Stat label="Unpaid invoices" value={String(unpaid.length)} note="Invoices with a balance due" />
+        <Stat
+          label="Overdue invoices"
+          value={String(overdue.length)}
+          tone={overdue.length ? "text-destructive" : ""}
+          note={overdue.length ? `${pkr(overdue.reduce((t, i) => t + balance(i), 0))} overdue` : "Nothing overdue"}
+        />
+        <Stat label="Expenses logged today" value={pkr(sum(todaysExpenses))} note={`${todaysExpenses.length} entries`} />
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <div className="min-w-0 rounded-lg border bg-card p-5">
+          <div className="mb-4 flex items-center justify-between gap-2">
+            <h2 className="text-2xl font-semibold">Recent invoices</h2>
+            <Button asChild size="sm" variant="outline">
+              <Link to="/invoices">All invoices</Link>
+            </Button>
+          </div>
+          <ul className="divide-y">
+            {data.invoices.slice(0, 8).map((i) => (
+              <li key={i.id} className="flex justify-between gap-3 py-2 text-sm">
+                <span className="min-w-0 break-words">
+                  {i.invoice_no} — {i.client_name}
+                  <span className="block text-xs text-muted-foreground">
+                    {i.kind} · due {fmtDate(i.due_date)}
+                  </span>
+                </span>
+                <span className="shrink-0 text-right">
+                  {pkr(i.amount)}
+                  <span className="block text-xs text-muted-foreground">
+                    {balance(i) > 0 ? `${pkr(balance(i))} due` : "Paid"}
+                  </span>
+                </span>
+              </li>
+            ))}
+            {data.invoices.length === 0 && (
+              <li className="py-6 text-center text-sm text-muted-foreground">No invoices yet.</li>
+            )}
+          </ul>
+        </div>
+
+        <div className="min-w-0 rounded-lg border bg-card p-5">
+          <div className="mb-4 flex items-center justify-between gap-2">
+            <h2 className="text-2xl font-semibold">Recent expenses</h2>
+            <Button asChild size="sm" variant="outline">
+              <Link to="/expenses">All expenses</Link>
+            </Button>
+          </div>
+          <ul className="divide-y">
+            {data.expenses.map((e) => (
+              <li key={e.id} className="flex justify-between gap-3 py-2 text-sm">
+                <span className="min-w-0 break-words">
+                  {e.category} — {e.description}
+                  <span className="block text-xs text-muted-foreground">{fmtDate(e.expense_date)}</span>
+                </span>
+                <span className="shrink-0">{pkr(e.amount)}</span>
+              </li>
+            ))}
+            {data.expenses.length === 0 && (
+              <li className="py-6 text-center text-sm text-muted-foreground">No expenses logged yet.</li>
+            )}
+          </ul>
+        </div>
+      </div>
     </div>
   );
 }

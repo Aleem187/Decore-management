@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/no-access")({
-  head: () => ({ meta: [{ title: "No access — Décor Studio" }] }),
+  head: () => ({ meta: [{ title: "No access — Sarim Events Planner" }] }),
   component: NoAccess,
 });
 

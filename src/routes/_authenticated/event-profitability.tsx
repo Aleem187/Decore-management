@@ -21,7 +21,7 @@ import {
 export const Route = createFileRoute("/_authenticated/event-profitability")({
   head: () => ({
     meta: [
-      { title: "Event Profitability — Décor Studio" },
+      { title: "Event Profitability — Sarim Events Planner" },
       { name: "description", content: "Profit and loss for each event." },
     ],
   }),

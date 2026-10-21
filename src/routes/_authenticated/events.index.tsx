@@ -1,3 +1,4 @@
+import { EVENT_TYPES } from "@/lib/brand";
 import { requireRole, useMe } from "@/lib/auth";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { CrudPage, StatusPill, useOptions } from "@/components/CrudPage";
@@ -12,10 +13,10 @@ import { fmtDate, pkr } from "@/lib/format";
 import { timeRange } from "@/lib/calendar";
 import { describeTimes, findVenueClashes } from "@/lib/clashes";
 
-const types = ["Wedding", "Mehndi", "Corporate", "Birthday", "Stage Decor", "Mandap / Stage", "Other"];
+const types: string[] = [...EVENT_TYPES];
 
 export const Route = createFileRoute("/_authenticated/events/")({
-  head: () => ({ meta: [{ title: "Events — Décor Studio" }, { name: "description", content: "Decor projects and status tracker." }, { property: "og:title", content: "Events — Décor Studio" }, { property: "og:description", content: "Decor projects and status tracker." }] }),
+  head: () => ({ meta: [{ title: "Events — Sarim Events Planner" }, { name: "description", content: "Decor projects and status tracker." }, { property: "og:title", content: "Events — Sarim Events Planner" }, { property: "og:description", content: "Decor projects and status tracker." }] }),
   beforeLoad: ({ context }) => requireRole(context.queryClient, ["admin"]),
   component: EventsPage,
 });

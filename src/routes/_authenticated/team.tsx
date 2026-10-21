@@ -5,7 +5,7 @@ import { requireRole } from "@/lib/auth";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 export const Route = createFileRoute("/_authenticated/team")({
-  head: () => ({ meta: [{ title: "Team & Audit — Décor Studio" }, { name: "description", content: "Staff roles and activity log." }, { property: "og:title", content: "Team & Audit — Décor Studio" }, { property: "og:description", content: "Staff roles and activity log." }] }),
+  head: () => ({ meta: [{ title: "Team & Audit — Sarim Events Planner" }, { name: "description", content: "Staff roles and activity log." }, { property: "og:title", content: "Team & Audit — Sarim Events Planner" }, { property: "og:description", content: "Staff roles and activity log." }] }),
   beforeLoad: ({ context }) => requireRole(context.queryClient, ["admin"]),
   component: TeamPage,
 });

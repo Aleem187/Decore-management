@@ -1,3 +1,4 @@
+import { BRAND_LOGO, BRAND_NAME, BRAND_TAGLINE } from "@/lib/brand";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { Sparkles, Hotel, Receipt, BarChart3 } from "lucide-react";
@@ -5,10 +6,10 @@ import { Sparkles, Hotel, Receipt, BarChart3 } from "lucide-react";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Décor Studio — Hotel Decoration Event Manager" },
-      { name: "description", content: "Run hotel decor events, invoices, expenses and vendor ledgers in one place." },
-      { property: "og:title", content: "Décor Studio — Hotel Decoration Event Manager" },
-      { property: "og:description", content: "Run hotel decor events, invoices, expenses and vendor ledgers in one place." },
+      { title: "Sarim Events Planner — Make Your Moments Special" },
+      { name: "description", content: "Weddings, birthdays, engagements, Walima, Aqiqah and more — events, invoices, expenses and staff in one place." },
+      { property: "og:title", content: "Sarim Events Planner — Make Your Moments Special" },
+      { property: "og:description", content: "Weddings, birthdays, engagements, Walima, Aqiqah and more — events, invoices, expenses and staff in one place." },
     ],
   }),
   component: Index,
@@ -24,16 +25,16 @@ function Index() {
   return (
     <div className="min-h-screen bg-hero text-primary-foreground">
       <header className="mx-auto flex max-w-6xl items-center justify-between px-6 py-6">
-        <span className="font-display text-2xl font-semibold">Décor Studio</span>
+        <span className="flex items-center gap-3"><img src={BRAND_LOGO} alt="" className="h-12 w-12 rounded-full" /><span className="text-gradient-gold font-display text-2xl font-semibold">{BRAND_NAME}</span></span>
         <Button asChild variant="secondary"><Link to="/auth">Sign in</Link></Button>
       </header>
       <main className="mx-auto max-w-6xl px-6 pb-20 pt-16">
-        <p className="text-sm uppercase tracking-[0.3em] text-gold">Events · Finance · Team</p>
+        <p className="text-sm uppercase tracking-[0.3em] text-gold">Sarim Events Planner</p>
         <h1 className="mt-4 max-w-3xl text-5xl font-semibold leading-tight md:text-7xl">
-          The back office for your decoration business.
+          Make Your Moments Special.
         </h1>
         <p className="mt-6 max-w-xl text-lg opacity-80">
-          One calm workspace for the owner and the accountant — every hotel, every event, every rupee.
+          Weddings · Birthdays · Engagements · Walima · Aqiqah · Other Events — every booking, every invoice, every rupee in one workspace.
         </p>
         <Button asChild size="lg" variant="secondary" className="mt-10"><Link to="/auth">Open workspace</Link></Button>
         <div className="mt-20 grid gap-4 md:grid-cols-4">

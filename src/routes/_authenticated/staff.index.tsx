@@ -25,11 +25,11 @@ import {
 export const Route = createFileRoute("/_authenticated/staff/")({
   head: () => ({
     meta: [
-      { title: "Staff — Décor Studio" },
+      { title: "Staff — Sarim Events Planner" },
       { name: "description", content: "Decorators, drivers and labour." },
     ],
   }),
-  beforeLoad: ({ context }) => requireRole(context.queryClient, ["admin", "accountant"]),
+  beforeLoad: ({ context }) => requireRole(context.queryClient, ["admin"]),
   component: StaffPage,
 });
 

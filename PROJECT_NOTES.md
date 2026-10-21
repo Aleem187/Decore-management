@@ -53,8 +53,8 @@ Routes and access:
 
 | Route | Who sees it |
 |---|---|
-| `/dashboard`, `/invoices`, `/expenses`, `/vendors` | admin and accountant |
-| `/events`, `/hotels` | admin only in the sidebar and by the UI guard |
+| `/dashboard` (different view per role), `/clients`, `/invoices`, `/expenses`, `/vendors` | admin and accountant |
+| `/events`, `/hotels`, `/calendar`, `/staff`, `/attendance`, `/event-profitability`, `/users` | admin only (`beforeLoad` redirect, sidebar, and RLS for staff data) |
 | `/team` | admin only (`beforeLoad` redirect) |
 
 ## 2. Supabase tables
@@ -111,13 +111,13 @@ RLS is **enabled on every table**. Nothing is unprotected.
 - Email and password through Supabase Auth (`auth.tsx`). Sign-up is open to anyone and sets `full_name` in user metadata.
 - `_authenticated` route (`ssr: false`): `beforeLoad` calls `supabase.auth.getUser()` and redirects to `/auth` if there is no user.
 - `meQuery` (`lib/auth.ts`) loads the user's roles and profile. Role = admin if the user has an admin row, otherwise the first role found.
-- `useMe()` returns the effective role. Admins can choose "View as Accountant" in the sidebar. That choice is stored in `localStorage` and **only changes the UI**. Database access always follows the real role.
+- `useMe()` returns the role stored in the database. There is no "View as" switcher; to see the accountant experience, sign in as an accountant.
 - The UI hides pages by role: the sidebar filter, a redirect effect for accountants, and the `/team` guard. **The actual enforcement is the RLS policies above.**
 - Server-side helpers exist (`auth-middleware.ts` for server functions, `cron-auth.ts` for cron secrets) but no server functions use them yet. The app talks to Supabase directly from the browser.
 
 ## 5. Existing features
 
-- Dashboard: admin KPIs (revenue, expenses, net profit, outstanding), 6-month cash flow, hotel performance chart with CSV export, upcoming events. The accountant gets a "desk" view with this month's cash in/out and pending bills.
+- Dashboard: admin KPIs (revenue, expenses, net profit, outstanding), 6-month cash flow, hotel performance chart with CSV export, upcoming events. The accountant gets a separate invoices-and-expenses view (unpaid/overdue invoices, today's expenses, recent invoices and expenses) with no profit, cash flow or staff figures; it runs its own queries.
 - Hotels and Events CRUD (admin writes). Events also have the material checklist and the WhatsApp update button.
 - Invoices CRUD, automatic status, PDF invoice and receipt, WhatsApp button, CSV export.
 - Expenses CRUD with day, month and unpaid totals, and CSV export.

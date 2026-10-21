@@ -1,4 +1,3 @@
-import { useSyncExternalStore } from "react";
 import { redirect } from "@tanstack/react-router";
 import { queryOptions, useQuery, type QueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -21,53 +20,18 @@ export const meQuery = queryOptions({
   },
 });
 
-// "View as" override so admins can preview the accountant experience.
-// UI-only: database access is still enforced by the real role via RLS.
-const VIEW_KEY = "view-as-role";
-const listeners = new Set<() => void>();
-
-export function getViewAs(): Role | null {
-  try {
-    const v = localStorage.getItem(VIEW_KEY);
-    return v === "admin" || v === "accountant" ? v : null;
-  } catch {
-    return null;
-  }
-}
-
-export function setViewAs(role: Role | null) {
-  try {
-    if (role) localStorage.setItem(VIEW_KEY, role);
-    else localStorage.removeItem(VIEW_KEY);
-  } catch { /* storage unavailable */ }
-  listeners.forEach((l) => l());
-}
-
 type Me = NonNullable<Awaited<ReturnType<NonNullable<typeof meQuery.queryFn>>>>;
 
-/** Applies the override only when the signed-in user is really an admin. */
-export function effectiveRole(realRole: Role | null): Role | null {
-  return realRole === "admin" ? getViewAs() ?? "admin" : realRole;
-}
+/** Pages an accountant may open: the financial modules only. Everything else is admin-only. */
+export const ACCOUNTANT_PAGES = ["/dashboard", "/clients", "/invoices", "/expenses", "/vendors"] as const;
 
-export const ACCOUNTANT_PAGES = ["/dashboard", "/calendar", "/staff", "/attendance", "/clients", "/invoices", "/expenses", "/vendors"] as const;
-
-/** Accountants may open their pages and a single event page (without cost or profit), never the events list or reports. */
 export function accountantMayVisit(pathname: string): boolean {
-  return ACCOUNTANT_PAGES.some((p) => pathname === p || pathname.startsWith(`${p}/`)) || /^\/events\/[^/]+\/?$/.test(pathname);
+  return ACCOUNTANT_PAGES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 }
 
+/** The signed-in user and their role, always as stored in the database (user_roles), never a client-side toggle. */
 export function useMe() {
-  const q = useQuery(meQuery);
-  const view = useSyncExternalStore(
-    (cb) => { listeners.add(cb); return () => { listeners.delete(cb); }; },
-    getViewAs,
-    () => null,
-  );
-  const data: (Me & { realRole: Role | null }) | null | undefined = q.data
-    ? { ...q.data, realRole: q.data.role, role: q.data.role === "admin" ? view ?? "admin" : q.data.role }
-    : (q.data as null | undefined);
-  return { ...q, data };
+  return useQuery(meQuery);
 }
 
 /**
@@ -79,7 +43,7 @@ export async function requireRole(queryClient: QueryClient, allowed: readonly Ro
   const { data, error } = await supabase.auth.getUser();
   if (error || !data.user) throw redirect({ to: "/auth" });
   const me = await queryClient.fetchQuery({ ...meQuery, staleTime: 0 });
-  const role = effectiveRole(me?.role ?? null);
+  const role = me?.role ?? null;
   // No role (never invited, or disabled): nothing to show, and /dashboard would loop back here.
   if (!role) throw redirect({ to: "/no-access" });
   if (!allowed.includes(role)) throw redirect({ to: "/dashboard" });

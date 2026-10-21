@@ -24,7 +24,7 @@ import {
 export const Route = createFileRoute("/_authenticated/clients/")({
   head: () => ({
     meta: [
-      { title: "Clients — Décor Studio" },
+      { title: "Clients — Sarim Events Planner" },
       { name: "description", content: "Client directory and balances." },
     ],
   }),

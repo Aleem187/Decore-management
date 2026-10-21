@@ -10,7 +10,7 @@ import { pkr } from "@/lib/format";
 import { vendorTotals, type LedgerExpense, type LedgerPayment } from "@/lib/vendor-ledger";
 
 export const Route = createFileRoute("/_authenticated/vendors")({
-  head: () => ({ meta: [{ title: "Vendors — Décor Studio" }, { name: "description", content: "Supplier ledgers." }, { property: "og:title", content: "Vendors — Décor Studio" }, { property: "og:description", content: "Supplier ledgers." }] }),
+  head: () => ({ meta: [{ title: "Vendors — Sarim Events Planner" }, { name: "description", content: "Supplier ledgers." }, { property: "og:title", content: "Vendors — Sarim Events Planner" }, { property: "og:description", content: "Supplier ledgers." }] }),
   beforeLoad: ({ context }) => requireRole(context.queryClient, ["admin", "accountant"]),
   component: VendorsPage,
 });

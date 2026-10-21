@@ -3,7 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { CrudPage } from "@/components/CrudPage";
 
 export const Route = createFileRoute("/_authenticated/hotels")({
-  head: () => ({ meta: [{ title: "Hotels — Décor Studio" }, { name: "description", content: "Hotel and venue directory." }, { property: "og:title", content: "Hotels — Décor Studio" }, { property: "og:description", content: "Hotel and venue directory." }] }),
+  head: () => ({ meta: [{ title: "Hotels — Sarim Events Planner" }, { name: "description", content: "Hotel and venue directory." }, { property: "og:title", content: "Hotels — Sarim Events Planner" }, { property: "og:description", content: "Hotel and venue directory." }] }),
   beforeLoad: ({ context }) => requireRole(context.queryClient, ["admin"]),
   component: () => {
     const { data: me } = useMe();

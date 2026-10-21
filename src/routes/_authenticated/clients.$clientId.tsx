@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/table";
 
 export const Route = createFileRoute("/_authenticated/clients/$clientId")({
-  head: () => ({ meta: [{ title: "Client — Décor Studio" }] }),
+  head: () => ({ meta: [{ title: "Client — Sarim Events Planner" }] }),
   beforeLoad: ({ context }) => requireRole(context.queryClient, ["admin", "accountant"]),
   component: ClientDetail,
 });

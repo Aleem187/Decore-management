@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 export const Route = createFileRoute("/set-password")({
-  head: () => ({ meta: [{ title: "Set your password — Décor Studio" }] }),
+  head: () => ({ meta: [{ title: "Set your password — Sarim Events Planner" }] }),
   component: SetPassword,
 });
 

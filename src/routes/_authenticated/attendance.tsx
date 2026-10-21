@@ -16,11 +16,11 @@ import { Input } from "@/components/ui/input";
 export const Route = createFileRoute("/_authenticated/attendance")({
   head: () => ({
     meta: [
-      { title: "Attendance — Décor Studio" },
+      { title: "Attendance — Sarim Events Planner" },
       { name: "description", content: "Daily attendance for staff." },
     ],
   }),
-  beforeLoad: ({ context }) => requireRole(context.queryClient, ["admin", "accountant"]),
+  beforeLoad: ({ context }) => requireRole(context.queryClient, ["admin"]),
   component: AttendancePage,
 });
 

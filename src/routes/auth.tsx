@@ -1,3 +1,4 @@
+import { BRAND_LOGO, BRAND_NAME, BRAND_TAGLINE } from "@/lib/brand";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -9,10 +10,10 @@ import { Label } from "@/components/ui/label";
 export const Route = createFileRoute("/auth")({
   head: () => ({
     meta: [
-      { title: "Sign in — Décor Studio" },
-      { name: "description", content: "Sign in to your Décor Studio workspace." },
-      { property: "og:title", content: "Sign in — Décor Studio" },
-      { property: "og:description", content: "Sign in to your Décor Studio workspace." },
+      { title: "Sign in — Sarim Events Planner" },
+      { name: "description", content: "Sign in to your Sarim Events Planner workspace." },
+      { property: "og:title", content: "Sign in — Sarim Events Planner" },
+      { property: "og:description", content: "Sign in to your Sarim Events Planner workspace." },
     ],
   }),
   component: AuthPage,
@@ -41,7 +42,9 @@ function AuthPage() {
   return (
     <div className="grid min-h-screen md:grid-cols-2">
       <div className="hidden bg-hero p-12 text-primary-foreground md:flex md:flex-col md:justify-end">
-        <h2 className="text-5xl font-semibold">Décor Studio</h2>
+        <img src={BRAND_LOGO} alt={BRAND_NAME} className="mb-6 h-40 w-40 self-start rounded-full" />
+        <h2 className="text-gradient-gold text-5xl font-semibold">{BRAND_NAME}</h2>
+        <p className="mt-2 font-display text-xl italic text-gold">{BRAND_TAGLINE}</p>
         <p className="mt-3 max-w-sm opacity-80">Access is by invitation only. Ask the owner to invite you.</p>
       </div>
       <div className="flex items-center justify-center p-6">

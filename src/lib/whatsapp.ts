@@ -33,7 +33,7 @@ export function whatsappUrl(u: WhatsAppUpdate): string {
   const text =
     `Hello ${u.clientName}, here is an update regarding ${event}. ` +
     `Total Amount: ${pkr(total)}, Paid: ${pkr(paid)}, Remaining Balance: ${pkr(Math.max(total - paid, 0))}. ` +
-    `Thank you for choosing Décor Studio!`;
+    `Thank you for choosing Sarim Events Planner! Make Your Moments Special.`;
   const phone = sanitizePhone(u.phone);
   return `https://wa.me/${phone ?? ""}?text=${encodeURIComponent(text)}`;
 }

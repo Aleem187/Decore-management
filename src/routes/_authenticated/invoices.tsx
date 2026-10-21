@@ -17,7 +17,7 @@ import { CrudPage, StatusPill, useOptions } from "@/components/CrudPage";
 import { fmtDate, pkr } from "@/lib/format";
 
 export const Route = createFileRoute("/_authenticated/invoices")({
-  head: () => ({ meta: [{ title: "Invoices — Décor Studio" }, { name: "description", content: "Client billing and payment status." }, { property: "og:title", content: "Invoices — Décor Studio" }, { property: "og:description", content: "Client billing and payment status." }] }),
+  head: () => ({ meta: [{ title: "Invoices — Sarim Events Planner" }, { name: "description", content: "Client billing and payment status." }, { property: "og:title", content: "Invoices — Sarim Events Planner" }, { property: "og:description", content: "Client billing and payment status." }] }),
   beforeLoad: ({ context }) => requireRole(context.queryClient, ["admin", "accountant"]),
   component: InvoicesPage,
 });
@@ -51,7 +51,7 @@ function InvoicesPage() {
   return (
     <>
     <CrudPage table="invoices" title="Invoices" subtitle="Paid amount and status are calculated from recorded payments" orderBy="created_at"
-      select="*, events(name, event_date, client_phone), clients(phone, whatsapp)" canWrite defaults={{ kind: "Advance", invoice_no: `INV-${Date.now().toString().slice(-6)}` }}
+      select="*, events(name, event_date, event_type, client_phone, hotels(name)), clients(phone, whatsapp)" canWrite defaults={{ kind: "Advance", invoice_no: `INV-${Date.now().toString().slice(-6)}` }}
       summary={(rows) => {
         const live = rows.filter((r) => !r.voided_at);
         const total = live.reduce((s, r) => s + Number(r.amount), 0);
@@ -66,7 +66,7 @@ function InvoicesPage() {
       }}
       columns={[
         { key: "invoice_no", label: "No.", render: (r) => <span className="font-mono text-xs">{r.invoice_no}</span> },
-        { key: "client_name", label: "Client", render: (r) => <>{r.client_name}<div className="text-xs text-muted-foreground">{r.event_id && r.events?.name ? <Link to="/events/$eventId" params={{ eventId: r.event_id }} className="underline-offset-2 hover:underline">{r.events.name}</Link> : (r.events?.name ?? "")} · {r.kind}</div></> },
+        { key: "client_name", label: "Client", render: (r) => <>{r.client_name}<div className="text-xs text-muted-foreground">{isAdmin && r.event_id && r.events?.name ? <Link to="/events/$eventId" params={{ eventId: r.event_id }} className="underline-offset-2 hover:underline">{r.events.name}</Link> : (r.events?.name ?? "")} · {r.kind}</div></> },
         { key: "amount", label: "Amount", render: (r) => pkr(r.amount) },
         { key: "amount_paid", label: "Paid", render: (r) => pkr(r.amount_paid) },
         { key: "balance", label: "Balance", render: (r) => pkr(Number(r.amount) - Number(r.amount_paid)) },

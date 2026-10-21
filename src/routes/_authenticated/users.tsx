@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 export const Route = createFileRoute("/_authenticated/users")({
-  head: () => ({ meta: [{ title: "Users — Décor Studio" }, { name: "description", content: "Invite staff and manage access." }] }),
+  head: () => ({ meta: [{ title: "Users — Sarim Events Planner" }, { name: "description", content: "Invite staff and manage access." }] }),
   beforeLoad: ({ context }) => requireRole(context.queryClient, ["admin"]),
   component: UsersPage,
 });
